@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { loadQuestion, type CompareMode } from "../src/judge";
-import { makeTree, SUM_YAML, sumQuestionFiles } from "./helpers";
+import { makeTree, sumQuestionFiles } from "./helpers";
 
 describe("loadQuestion", () => {
   test("loads a valid question folder into a typed question", () => {
@@ -63,7 +63,7 @@ describe("loadQuestion", () => {
   test("accepts the exact and float:<eps> compare modes", () => {
     const valid: CompareMode[] = ["exact", "float:1e-6", "float:0", "float:0.25"];
     for (const compare of valid) {
-      const result = loadQuestion(makeTree({ ...sumQuestionFiles(), "question.yaml": `${SUM_YAML}compare: "${compare}"\n` }));
+      const result = loadQuestion(makeTree(sumQuestionFiles("", `compare: "${compare}"\n`)));
       if (!result.ok) throw new Error(JSON.stringify(result.errors));
       expect(result.question.compare).toBe(compare);
     }
@@ -73,7 +73,7 @@ describe("loadQuestion", () => {
     // YAML scalars as written in question.yaml; `12` is a number, not a string
     const invalid = ["fuzzy", '"float"', '"float:"', '"float:abc"', '"float:-1"', '"float:Infinity"', "LINES", "12"];
     for (const compare of invalid) {
-      const result = loadQuestion(makeTree({ ...sumQuestionFiles(), "question.yaml": `${SUM_YAML}compare: ${compare}\n` }));
+      const result = loadQuestion(makeTree(sumQuestionFiles("", `compare: ${compare}\n`)));
 
       expect(result.ok).toBe(false);
       if (result.ok) continue;

@@ -11,7 +11,7 @@ import {
   type Question,
   type TestResult,
 } from "../src/judge";
-import { makeTree, SUM_YAML, sumQuestionFiles } from "./helpers";
+import { makeTree, sumQuestionFiles } from "./helpers";
 
 const SOLUTIONS = join(import.meta.dir, "fixtures", "solutions");
 
@@ -204,9 +204,7 @@ describe("runQuestion", () => {
 
 /** The sum question with extra top-level `question.yaml` lines (e.g. `timeLimitMs: 500`). */
 function sumQuestionWith(yamlExtra: string): Question {
-  const files = sumQuestionFiles("q1_sum/");
-  files["q1_sum/question.yaml"] = SUM_YAML + yamlExtra;
-  const loaded = loadQuestion(join(makeTree(files), "q1_sum"));
+  const loaded = loadQuestion(join(makeTree(sumQuestionFiles("q1_sum/", yamlExtra)), "q1_sum"));
   if (!loaded.ok) throw new Error(JSON.stringify(loaded.errors));
   return loaded.question;
 }
@@ -307,6 +305,34 @@ describe("runQuestion limits", () => {
     expect(streamed).toEqual([]);
     expect(isAlive(pid)).toBe(false);
   });
+
+  test("a timeout kills the solution's whole process tree, not just the direct child", async () => {
+    const workspace = workspaceWith("spawns_child.py");
+    const question = sumQuestionWith("timeLimitMs: 1000\n");
+
+    // Would hang forever if the grandchild kept the output pipes open.
+    const report = await runQuestion({ python, question, workspaceDir: workspace, mode: "run" });
+
+    // the pid file holds the grandchild of the last test run
+    expect(report.results.map((r) => r.status)).toEqual(["timeout", "timeout"]);
+    const grandchild = Number(readFileSync(join(workspace, "solution.pid"), "utf8"));
+    expect(isAlive(grandchild)).toBe(false);
+  });
+
+  test("a solution that exits but leaves a process holding its output still finishes", async () => {
+    const report = await runQuestion({
+      python,
+      question: sumQuestionWith("timeLimitMs: 500\n"),
+      workspaceDir: workspaceWith("orphans_child.py"),
+      mode: "run",
+    });
+
+    // It exited 0 within the limit having printed nothing: a wrong answer, not a timeout.
+    expect(report.results.map((r) => [r.status, r.exitCode])).toEqual([
+      ["wrong", 0],
+      ["wrong", 0],
+    ]);
+  }, 10_000);
 
   test("a run cancelled before it starts runs nothing", async () => {
     const report = await runQuestion({

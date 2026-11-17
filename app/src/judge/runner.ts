@@ -1,10 +1,11 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { join } from "node:path";
 import { outputsMatch } from "./compare";
 import type { PythonInfo } from "./python";
 import type { Question, TestCase, TestKind } from "./types";
 
 const OUTPUT_LIMIT_BYTES = 1024 * 1024;
+const PIPE_DRAIN_GRACE_MS = 1000;
 
 /** `run` = sample tests of every part; `submit` = every test. */
 export type RunMode = "run" | "submit";
@@ -108,7 +109,8 @@ async function runTest(
   return { ...base, status };
 }
 
-interface Limits {
+/** When the runner must stop a process early. */
+interface StopConditions {
   timeLimitMs: number;
   /** Cap on each of stdout and stderr. */
   outputLimitBytes: number;
@@ -122,24 +124,55 @@ interface Execution extends ProcessOutput {
   stopped?: StopReason;
 }
 
-function execute(command: string, args: string[], cwd: string, input: string, limits: Limits): Promise<Execution> {
+function execute(
+  command: string,
+  args: string[],
+  cwd: string,
+  input: string,
+  limits: StopConditions,
+): Promise<Execution> {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd,
       env: { ...process.env, PYTHONIOENCODING: "utf-8" },
       windowsHide: true,
+      // Own process group on POSIX, so the whole tree can be killed at once.
+      detached: process.platform !== "win32",
+    });
+    let settled = false;
+    const settle = (execution: Execution) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(execution);
+    };
+    let exited = false;
+    let drainTimer: ReturnType<typeof setTimeout> | undefined;
+    child.on("exit", () => {
+      exited = true;
+      // A leftover descendant may hold the pipes open forever; once the solution itself has
+      // exited, give its output a moment to drain, then stop waiting for the pipes to close.
+      drainTimer = setTimeout(() => {
+        child.stdout.destroy();
+        child.stderr.destroy();
+      }, PIPE_DRAIN_GRACE_MS);
     });
     let stopped: StopReason | undefined;
+    let killed = false;
     const stop = (reason: StopReason) => {
-      if (stopped) return;
-      stopped = reason;
-      child.kill("SIGKILL");
+      // A process that already exited on its own keeps its real result; we still kill any
+      // descendants, since they may be holding the output pipes open.
+      if (!exited && !stopped) stopped = reason;
+      if (killed) return;
+      killed = true;
+      killTree(child);
     };
     const timer = setTimeout(() => stop("timeout"), limits.timeLimitMs);
     const onAbort = () => stop("cancelled");
     limits.signal?.addEventListener("abort", onAbort, { once: true });
     const cleanup = () => {
       clearTimeout(timer);
+      clearTimeout(drainTimer);
       limits.signal?.removeEventListener("abort", onAbort);
     };
     const stdout = capture(child.stdout, limits.outputLimitBytes, () => stop("output"));
@@ -147,15 +180,35 @@ function execute(command: string, args: string[], cwd: string, input: string, li
     // The solution may exit without reading all of stdin; a broken pipe is not our error.
     child.stdin.on("error", () => {});
     child.on("error", (err) => {
-      cleanup();
-      resolve({ stdout: "", stderr: `failed to start Python: ${err.message}`, exitCode: null });
+      settle({ stdout: "", stderr: `failed to start Python: ${err.message}`, exitCode: null, stopped });
     });
     child.on("close", (code) => {
-      cleanup();
-      resolve({ stdout: decode(stdout), stderr: decode(stderr), exitCode: code, stopped });
+      settle({ stdout: decode(stdout), stderr: decode(stderr), exitCode: code, stopped });
     });
     child.stdin.end(input);
   });
+}
+
+/**
+ * Kills `child` and every process it started. Killing only the direct child is not enough:
+ * a grandchild (a solution's own subprocess, or the real interpreter behind a Windows venv
+ * launcher) would survive and keep the output pipes open, so the run would never finish.
+ */
+function killTree(child: ChildProcess): void {
+  const { pid } = child;
+  if (pid === undefined) return;
+  if (process.platform === "win32") {
+    spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" }).on(
+      "error",
+      () => child.kill(),
+    );
+    return;
+  }
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    child.kill("SIGKILL");
+  }
 }
 
 /** Collects up to `limit` bytes from `stream`; calls `onOverflow` once more would be needed. */

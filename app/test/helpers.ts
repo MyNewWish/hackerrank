@@ -29,10 +29,12 @@ parts:
 /**
  * A "sum two numbers" question with two parts.
  * part1: one line "a b" → a+b. part2: several "a b" lines → one sum per line.
+ * `yamlExtra` appends top-level `question.yaml` lines, e.g. `compare: exact
+`.
  */
-export function sumQuestionFiles(prefix = ""): Record<string, string> {
+export function sumQuestionFiles(prefix = "", yamlExtra = ""): Record<string, string> {
   return {
-    [`${prefix}question.yaml`]: SUM_YAML,
+    [`${prefix}question.yaml`]: SUM_YAML + yamlExtra,
     [`${prefix}problem.md`]: "# Sum\n\n## Part 1\n\nAdd.\n\n## Part 2\n\nAdd many.\n",
     [`${prefix}tests/part1/sample/01.in`]: "1 2\n",
     [`${prefix}tests/part1/sample/01.out`]: "3\n",
