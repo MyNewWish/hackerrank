@@ -53,6 +53,10 @@ body { background: var(--bg); color: var(--fg); }
   min-width: 0; max-width: 520px; flex: 1 1 auto; padding: 4px 6px;
   background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px;
 }
+.stopwatch { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.stopwatch.idle { color: var(--muted); }
+.stopwatch.warn { color: var(--warn); }
+.stopwatch.over { color: var(--fail); }
 .python-status { margin-left: auto; color: var(--muted); font-size: 13px; white-space: nowrap; }
 button.primary {
   padding: 5px 18px; border: none; border-radius: 6px; cursor: pointer;

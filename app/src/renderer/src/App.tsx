@@ -1,4 +1,5 @@
 import Editor from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import type { DiscoverResult, QuestionSummary, QuestionView, RunMode } from "../../shared/api";
@@ -6,6 +7,7 @@ import { CUSTOM_STDIN_ID, CustomRun, type CustomState } from "./CustomRun";
 import { Results, type RunState } from "./Results";
 import { shortcutAction } from "./shortcuts";
 import { Statement } from "./Statement";
+import { Stopwatch } from "./Stopwatch";
 import { useDarkMode } from "./useDarkMode";
 
 const api = window.hackrank;
@@ -37,6 +39,9 @@ export function App() {
   /** The question most recently picked; replies for any other question arrived too late and are dropped. */
   const current = useRef<string>(undefined);
   const autosave = useAutosave(setSaveError);
+  const editorRef = useRef<editor.IStandaloneCodeEditor>(undefined);
+  /** When each question's stopwatch started (its first keystroke), kept while the app is open. */
+  const [startedAt, setStartedAt] = useState<Record<string, number>>({});
 
   const openQuestion = useCallback(
     async (id: string) => {
@@ -123,6 +128,18 @@ export function App() {
       }
     });
 
+  /** After confirmation, empties the editor and the saved file. The stopwatch keeps running. */
+  const resetCode = async () => {
+    if (!open) return;
+    const { id } = open.question;
+    // Another question is loading, or a run is grading the saved file: leave the code alone.
+    if (current.current !== id || busy.current) return;
+    if (!window.confirm(`Reset ${id}? This empties the editor and your saved code for this question.`)) return;
+    // The change event queues the empty file's save; flush writes it now.
+    editorRef.current?.setValue("");
+    await autosave.flush();
+  };
+
   // Capture phase, so the editor never sees the shortcut (Monaco binds Ctrl+Enter itself).
   const startRunRef = useRef(startRun);
   startRunRef.current = startRun;
@@ -163,10 +180,20 @@ export function App() {
             ),
           )}
         </select>
+        {open && <Stopwatch startedAt={startedAt[open.question.id]} targetMinutes={open.question.targetMinutes} />}
         {saveError && <span className="save-error">Autosave failed: {saveError}</span>}
         <span className="python-status">
           {python === undefined ? "Finding Python…" : python.ok ? `Python ${python.python.version}` : python.error}
         </span>
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => void resetCode()}
+          disabled={!open || running}
+          title="Empty the editor and the saved code for this question"
+        >
+          Reset
+        </button>
         <button
           type="button"
           className="secondary"
@@ -205,9 +232,15 @@ export function App() {
                   defaultValue={open.initialCode}
                   theme={dark ? "vs-dark" : "light"}
                   options={{ fontSize: 14, minimap: { enabled: false }, automaticLayout: true, tabSize: 4 }}
-                  onChange={(value) => {
+                  onMount={(instance) => {
+                    editorRef.current = instance;
+                  }}
+                  onChange={(value, event) => {
+                    const { id } = open.question;
                     code.current = value ?? "";
-                    autosave.schedule(open.question.id, code.current);
+                    autosave.schedule(id, code.current);
+                    // A flush is a programmatic replace (Reset), not the user typing.
+                    if (!event.isFlush) setStartedAt((all) => (id in all ? all : { ...all, [id]: Date.now() }));
                   }}
                 />
               )}
