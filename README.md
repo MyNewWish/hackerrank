@@ -47,7 +47,10 @@ That page leaves gaps and has wrong examples, so each problem.md states the rule
 
 The `questions/qN_*` folders are stdin → stdout questions for the practice app in `app/`:
 each has `problem.md`, `question.yaml`, `reference.py`, and sample and hidden tests in
-`tests/partN/`. The remaining `pN_*` folders contain `problem.md`, `solution.py` (empty stub
+`tests/partN/`. After an attempt, the app's **My solution | Reference** switch shows the
+reference in the editor (it asks first), where Run, Submit and Custom input run it. It is
+your own copy, `workspace/qN_reference.py`, so edits never touch the bank; **Recover** restores
+it from the bank's `reference.py`. The remaining `pN_*` folders contain `problem.md`, `solution.py` (empty stub
 you fill in), `test.py`, and `reference.py`. Run `python test.py` to test your code or
 `python test.py ref` to test the reference. **Keep reference.py closed until you've made a timed attempt.**
 

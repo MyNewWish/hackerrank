@@ -279,7 +279,9 @@ function idOf(uri: string): string | undefined {
   const [file, folder] = uri.split("/").reverse();
   if (file !== "solution.py" || folder === undefined) return undefined;
   try {
-    return decodeURIComponent(folder);
+    // Two layers: the URL's own encoding of the folder name, then `uriOf`'s encoding of the id
+    // (an id like `q1:reference` becomes the folder `q1%3Areference`, then `q1%253Areference`).
+    return decodeURIComponent(decodeURIComponent(folder));
   } catch {
     return undefined;
   }

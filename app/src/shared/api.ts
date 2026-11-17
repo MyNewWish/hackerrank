@@ -62,6 +62,15 @@ export interface Settings {
 export const IDE_MODES = ["full", "hackerrank"] as const;
 export type IdeMode = (typeof IDE_MODES)[number];
 
+/** Which code the editor shows: my own solution, or the question's reference copy. */
+export const CODE_VIEWS = ["solution", "reference"] as const;
+export type CodeView = (typeof CODE_VIEWS)[number];
+
+/** Whether the reference copy differs from the bank's `reference.py`, i.e. whether Recover would change it. */
+export interface ReferenceStatus {
+  modified: boolean;
+}
+
 export type QuestionSummary =
   | { id: string; ok: true; title: string; difficulty: Difficulty; targetMinutes: number }
   | { id: string; ok: false; folder: string; errors: ValidationError[] };
@@ -81,9 +90,11 @@ export interface QuestionView {
 export const CHANNELS = {
   listQuestions: "questions:list",
   loadQuestion: "question:load",
-  readSolution: "solution:read",
-  writeSolution: "solution:write",
-  writeSolutionSync: "solution:write-sync",
+  readCode: "code:read",
+  writeCode: "code:write",
+  writeCodeSync: "code:write-sync",
+  referenceStatus: "reference:status",
+  recoverReference: "reference:recover",
   run: "run",
   runCustom: "run:custom",
   /** Main → renderer: one finished test of a run, as `(runId, GradedTest)`. */
@@ -114,18 +125,25 @@ export const CHANNELS = {
 export interface HackrankApi {
   listQuestions(): Promise<QuestionSummary[]>;
   loadQuestion(id: string): Promise<QuestionView>;
-  /** Empty for a never-attempted question. */
-  readSolution(id: string): Promise<string>;
-  writeSolution(id: string, code: string): Promise<void>;
-  /** Blocks until saved; only for when the window is closing and an async save could be cut off. */
-  writeSolutionSync(id: string, code: string): void;
   /**
-   * Saves `code`, then grades it: `run` = sample tests only, `submit` = sample and hidden tests.
-   * `onResult` is called as each test finishes, before the returned report resolves.
+   * The saved code of `view`. My solution is empty for a never-attempted question; the reference
+   * copy is snapshotted from the bank's `reference.py` on the first read (rejects if there is none).
    */
-  run(id: string, code: string, mode: RunMode, onResult: (result: GradedTest) => void): Promise<GradedReport>;
-  /** Saves `code`, then runs it once on `stdin` with no grading. */
-  runCustom(id: string, code: string, stdin: string): Promise<CustomRunResult>;
+  readCode(id: string, view: CodeView): Promise<string>;
+  writeCode(id: string, view: CodeView, code: string): Promise<void>;
+  /** Blocks until saved; only for when the window is closing and an async save could be cut off. */
+  writeCodeSync(id: string, view: CodeView, code: string): void;
+  /**
+   * Saves `code` as `view`, then grades that file: `run` = sample tests only, `submit` = sample and
+   * hidden tests. `onResult` is called as each test finishes, before the returned report resolves.
+   */
+  run(id: string, view: CodeView, code: string, mode: RunMode, onResult: (result: GradedTest) => void): Promise<GradedReport>;
+  /** Saves `code` as `view`, then runs that file once on `stdin` with no grading. */
+  runCustom(id: string, view: CodeView, code: string, stdin: string): Promise<CustomRunResult>;
+  /** Whether the reference copy differs from the bank's `reference.py`. */
+  referenceStatus(id: string): Promise<ReferenceStatus>;
+  /** Overwrites the reference copy with the bank's current `reference.py`; resolves to its code. */
+  recoverReference(id: string): Promise<string>;
   /** The interpreter runs use: the configured path, else the first Python 3 found. */
   detectPython(): Promise<DiscoverResult>;
   /** The saved settings with blanks filled in by the defaults. */
@@ -143,8 +161,9 @@ export interface HackrankApi {
 
   // Python language features, from a pyright server the main process starts on the first `lspOpen`
   // in the full IDE mode (`lspOpen` does nothing in the HackerRank-like mode).
-  // Each open question is one in-memory document; the server never reads the saved file.
-  /** Opens question `id`'s document with the editor's text. */
+  // Each open editor is one in-memory document (`<id>` for my solution, `<id>:reference` for the
+  // reference copy); the server never reads the saved file.
+  /** Opens document `id` with the editor's text. */
   lspOpen(id: string, text: string): void;
   /** Sends the document's whole new text. */
   lspChange(id: string, text: string): void;

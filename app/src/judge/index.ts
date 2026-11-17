@@ -6,6 +6,7 @@ export { outputsMatch } from "./compare";
 export {
   runQuestion,
   runProgram,
+  referencePath,
   solutionPath,
   type RunMode,
   type RunOptions,

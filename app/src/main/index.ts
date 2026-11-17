@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPracticeService } from "../practice";
 import { createSettingsStore } from "../settings";
-import { CHANNELS, IDE_MODES, RUN_MODES, type CompletionItem, type IdeMode, type Position, type RunMode, type Settings, type SignatureHelpContext } from "../shared/api";
+import { CHANNELS, CODE_VIEWS, IDE_MODES, RUN_MODES, type CodeView, type CompletionItem, type IdeMode, type Position, type RunMode, type Settings, type SignatureHelpContext } from "../shared/api";
 import { SignatureHelpTriggerKind } from "vscode-languageserver-protocol";
 import { createPyrightHost } from "./lsp/server";
 
@@ -43,14 +43,18 @@ function registerIpc(): void {
   };
   ipcMain.handle(CHANNELS.listQuestions, () => service.listQuestions());
   ipcMain.handle(CHANNELS.loadQuestion, (_e, id) => service.loadQuestion(requireString(id)));
-  ipcMain.handle(CHANNELS.readSolution, (_e, id) => service.readSolution(requireString(id)));
-  ipcMain.handle(CHANNELS.writeSolution, (_e, id, code) =>
-    service.writeSolution(requireString(id), requireString(code)),
+  const requireView = (value: unknown): CodeView => {
+    if (!CODE_VIEWS.includes(value as CodeView)) throw new TypeError("expected a code view");
+    return value as CodeView;
+  };
+  ipcMain.handle(CHANNELS.readCode, (_e, id, view) => service.readCode(requireString(id), requireView(view)));
+  ipcMain.handle(CHANNELS.writeCode, (_e, id, view, code) =>
+    service.writeCode(requireString(id), requireView(view), requireString(code)),
   );
   // Synchronous IPC returns a value instead of rejecting: undefined on success, else the error message.
-  ipcMain.on(CHANNELS.writeSolutionSync, (event, id, code) => {
+  ipcMain.on(CHANNELS.writeCodeSync, (event, id, view, code) => {
     try {
-      service.writeSolution(requireString(id), requireString(code));
+      service.writeCode(requireString(id), requireView(view), requireString(code));
       event.returnValue = undefined;
     } catch (e) {
       event.returnValue = (e as Error).message;
@@ -60,13 +64,15 @@ function registerIpc(): void {
     if (!RUN_MODES.includes(value as RunMode)) throw new TypeError("expected a run mode");
     return value as RunMode;
   };
-  ipcMain.handle(CHANNELS.run, (event, runId, id, code, mode) =>
-    service.run(requireString(id), requireString(code), requireMode(mode), (result) => {
+  ipcMain.handle(CHANNELS.referenceStatus, (_e, id) => service.referenceStatus(requireString(id)));
+  ipcMain.handle(CHANNELS.recoverReference, (_e, id) => service.recoverReference(requireString(id)));
+  ipcMain.handle(CHANNELS.run, (event, runId, id, view, code, mode) =>
+    service.run(requireString(id), requireView(view), requireString(code), requireMode(mode), (result) => {
       if (!event.sender.isDestroyed()) event.sender.send(CHANNELS.runResult, runId, result);
     }),
   );
-  ipcMain.handle(CHANNELS.runCustom, (_e, id, code, stdin) =>
-    service.runCustom(requireString(id), requireString(code), requireString(stdin)),
+  ipcMain.handle(CHANNELS.runCustom, (_e, id, view, code, stdin) =>
+    service.runCustom(requireString(id), requireView(view), requireString(code), requireString(stdin)),
   );
   ipcMain.handle(CHANNELS.detectPython, () => service.detectPython());
   ipcMain.handle(CHANNELS.getSettings, () => settings.get());

@@ -27,11 +27,12 @@ beforeAll(async () => {
   question = loaded.question;
 });
 
-/** A fresh workspace folder holding `fixture` as the question's solution file. */
-function workspaceWith(fixture: string): string {
-  const workspace = mkdtempSync(join(tmpdir(), "judge-ws-"));
-  copyFileSync(join(SOLUTIONS, fixture), solutionPath(workspace, question.id));
-  return workspace;
+/** A fresh workspace folder holding `fixture` as the question's solution file: the program to run, and where. */
+function workspaceWith(fixture: string): { file: string; workspaceDir: string } {
+  const workspaceDir = mkdtempSync(join(tmpdir(), "judge-ws-"));
+  const file = solutionPath(workspaceDir, question.id);
+  copyFileSync(join(SOLUTIONS, fixture), file);
+  return { file, workspaceDir };
 }
 
 describe("runQuestion", () => {
@@ -39,7 +40,7 @@ describe("runQuestion", () => {
     const report = await runQuestion({
       python,
       question,
-      workspaceDir: workspaceWith("correct.py"),
+      ...workspaceWith("correct.py"),
       mode: "run",
     });
 
@@ -64,7 +65,7 @@ describe("runQuestion", () => {
     const report = await runQuestion({
       python,
       question,
-      workspaceDir: workspaceWith("correct.py"),
+      ...workspaceWith("correct.py"),
       mode: "submit",
       onResult: (r) => streamed.push(r),
     });
@@ -93,7 +94,7 @@ describe("runQuestion", () => {
     const report = await runQuestion({
       python,
       question,
-      workspaceDir: workspaceWith("wrong.py"),
+      ...workspaceWith("wrong.py"),
       mode: "submit",
     });
 
@@ -107,7 +108,7 @@ describe("runQuestion", () => {
     const report = await runQuestion({
       python,
       question,
-      workspaceDir: workspaceWith("crash.py"),
+      ...workspaceWith("crash.py"),
       mode: "run",
     });
 
@@ -129,7 +130,7 @@ describe("runQuestion", () => {
     const report = await runQuestion({
       python,
       question,
-      workspaceDir: workspaceWith("trailing_whitespace.py"),
+      ...workspaceWith("trailing_whitespace.py"),
       mode: "submit",
     });
 
@@ -153,7 +154,7 @@ describe("runQuestion", () => {
     const report = await runQuestion({
       python,
       question: mixed.question,
-      workspaceDir: workspaceWith("correct.py"),
+      ...workspaceWith("correct.py"),
       mode: "submit",
     });
 
@@ -178,7 +179,7 @@ describe("runQuestion", () => {
     const report = await runQuestion({
       python,
       question: hiddenOnly.question,
-      workspaceDir: workspaceWith("correct.py"),
+      ...workspaceWith("correct.py"),
       mode: "run",
     });
 
@@ -193,12 +194,22 @@ describe("runQuestion", () => {
   });
 
   test("runs the solution with the workspace as its working directory", async () => {
-    const workspace = workspaceWith("correct.py");
-    writeFileSync(solutionPath(workspace, question.id), "import os\nprint(os.getcwd())\n");
+    const program = workspaceWith("correct.py");
+    writeFileSync(program.file, "import os\nprint(os.getcwd())\n");
 
-    const report = await runQuestion({ python, question, workspaceDir: workspace, mode: "run" });
+    const report = await runQuestion({ python, question, ...program, mode: "run" });
 
-    expect(realpathSync(report.results[0]!.stdout.trim())).toBe(realpathSync(workspace));
+    expect(realpathSync(report.results[0]!.stdout.trim())).toBe(realpathSync(program.workspaceDir));
+  });
+
+  test("runs the program it is given, not the question's solution file", async () => {
+    const program = workspaceWith("wrong.py");
+    const other = join(program.workspaceDir, "q1_reference.py");
+    copyFileSync(join(SOLUTIONS, "correct.py"), other);
+
+    const report = await runQuestion({ python, question, workspaceDir: program.workspaceDir, file: other, mode: "run" });
+
+    expect(report.results.map((r) => r.status)).toEqual(["pass", "pass"]);
   });
 });
 
@@ -211,9 +222,9 @@ function sumQuestionWith(yamlExtra: string): Question {
 
 describe("runQuestion comparison modes", () => {
   test("`exact` fails a trailing-whitespace variant that the default `lines` passes", async () => {
-    const workspaceDir = workspaceWith("trailing_whitespace.py");
-    const lines = await runQuestion({ python, question, workspaceDir, mode: "run" });
-    const exact = await runQuestion({ python, question: sumQuestionWith("compare: exact\n"), workspaceDir, mode: "run" });
+    const program = workspaceWith("trailing_whitespace.py");
+    const lines = await runQuestion({ python, question, ...program, mode: "run" });
+    const exact = await runQuestion({ python, question: sumQuestionWith("compare: exact\n"), ...program, mode: "run" });
 
     expect(lines.results.map((r) => r.status)).toEqual(["pass", "pass"]);
     expect(exact.results.map((r) => r.status)).toEqual(["wrong", "wrong"]);
@@ -223,7 +234,7 @@ describe("runQuestion comparison modes", () => {
     const report = await runQuestion({
       python,
       question: sumQuestionWith("compare: exact\n"),
-      workspaceDir: workspaceWith("correct.py"),
+      ...workspaceWith("correct.py"),
       mode: "submit",
     });
 
@@ -232,8 +243,8 @@ describe("runQuestion comparison modes", () => {
 
   test("`float:<eps>` passes float noise within eps and fails it beyond eps", async () => {
     // float_noise.py prints e.g. "3.0000000001" for an expected "3"
-    const workspaceDir = workspaceWith("float_noise.py");
-    const run = (yaml: string) => runQuestion({ python, question: sumQuestionWith(yaml), workspaceDir, mode: "submit" });
+    const program = workspaceWith("float_noise.py");
+    const run = (yaml: string) => runQuestion({ python, question: sumQuestionWith(yaml), ...program, mode: "submit" });
 
     const loose = await run("compare: float:1e-6\n");
     const tight = await run("compare: float:1e-12\n");
@@ -251,7 +262,7 @@ describe("runQuestion limits", () => {
     const report = await runQuestion({
       python,
       question: sumQuestionWith("timeLimitMs: 500\n"),
-      workspaceDir: workspaceWith("infinite_loop.py"),
+      ...workspaceWith("infinite_loop.py"),
       mode: "run",
     });
     const elapsed = performance.now() - started;
@@ -267,7 +278,7 @@ describe("runQuestion limits", () => {
     const report = await runQuestion({
       python,
       question,
-      workspaceDir: workspaceWith("output_flood.py"),
+      ...workspaceWith("output_flood.py"),
       mode: "run",
     });
 
@@ -280,8 +291,8 @@ describe("runQuestion limits", () => {
   });
 
   test("cancelling a run kills the running process and starts no further tests", async () => {
-    const workspace = workspaceWith("infinite_loop.py");
-    const pidFile = join(workspace, "solution.pid");
+    const program = workspaceWith("infinite_loop.py");
+    const pidFile = join(program.workspaceDir, "solution.pid");
     const controller = new AbortController();
     const streamed: TestResult[] = [];
     const started = performance.now();
@@ -289,7 +300,7 @@ describe("runQuestion limits", () => {
     const running = runQuestion({
       python,
       question, // default 5000 ms limit: only cancellation can end this quickly
-      workspaceDir: workspace,
+      ...program,
       mode: "submit",
       onResult: (r) => streamed.push(r),
       signal: controller.signal,
@@ -307,15 +318,15 @@ describe("runQuestion limits", () => {
   });
 
   test("a timeout kills the solution's whole process tree, not just the direct child", async () => {
-    const workspace = workspaceWith("spawns_child.py");
+    const program = workspaceWith("spawns_child.py");
     const question = sumQuestionWith("timeLimitMs: 1000\n");
 
     // Would hang forever if the grandchild kept the output pipes open.
-    const report = await runQuestion({ python, question, workspaceDir: workspace, mode: "run" });
+    const report = await runQuestion({ python, question, ...program, mode: "run" });
 
     // the pid file holds the grandchild of the last test run
     expect(report.results.map((r) => r.status)).toEqual(["timeout", "timeout"]);
-    const grandchild = Number(readFileSync(join(workspace, "solution.pid"), "utf8"));
+    const grandchild = Number(readFileSync(join(program.workspaceDir, "solution.pid"), "utf8"));
     expect(isAlive(grandchild)).toBe(false);
   });
 
@@ -323,7 +334,7 @@ describe("runQuestion limits", () => {
     const report = await runQuestion({
       python,
       question: sumQuestionWith("timeLimitMs: 500\n"),
-      workspaceDir: workspaceWith("orphans_child.py"),
+      ...workspaceWith("orphans_child.py"),
       mode: "run",
     });
 
@@ -338,7 +349,7 @@ describe("runQuestion limits", () => {
     const report = await runQuestion({
       python,
       question,
-      workspaceDir: workspaceWith("correct.py"),
+      ...workspaceWith("correct.py"),
       mode: "submit",
       signal: AbortSignal.abort(),
     });

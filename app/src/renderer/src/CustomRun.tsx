@@ -29,6 +29,7 @@ export function CustomRun({
   onRun,
   disabled,
   shortcut,
+  codeName,
 }: {
   input: string;
   onInputChange: (input: string) => void;
@@ -37,6 +38,8 @@ export function CustomRun({
   disabled: boolean;
   /** The key combination that runs this input from the stdin box, for the button's tooltip. */
   shortcut: string;
+  /** Whose code runs: "My solution" or "Reference". Results are cleared when it changes. */
+  codeName: string;
 }) {
   return (
     <Group orientation="horizontal" className="results-body">
@@ -44,7 +47,7 @@ export function CustomRun({
         <div className="custom-input">
           <div className="custom-toolbar">
             <label htmlFor={CUSTOM_STDIN_ID}>Stdin</label>
-            <button type="button" className="secondary" onClick={onRun} disabled={disabled} title={`Run your code on this input (${shortcut})`}>
+            <button type="button" className="secondary" onClick={onRun} disabled={disabled} title={`Run ${codeName.toLowerCase()} on this input (${shortcut})`}>
               Run with this input
             </button>
           </div>
@@ -60,20 +63,24 @@ export function CustomRun({
       </Panel>
       <Separator className="separator vertical" />
       <Panel minSize="20">
-        <CustomOutput state={state} />
+        <CustomOutput state={state} codeName={codeName} />
       </Panel>
     </Group>
   );
 }
 
-function CustomOutput({ state }: { state: CustomState }) {
+function CustomOutput({ state, codeName }: { state: CustomState; codeName: string }) {
   switch (state.kind) {
     case "idle":
-      return <p className="placeholder">Runs your current code on this input. Nothing is graded.</p>;
+      return <p className="placeholder">Runs the code on screen ({codeName}) on this input. Nothing is graded.</p>;
     case "running":
       return <p className="placeholder">Running…</p>;
     case "failed":
-      return <p className="results error">{state.message}</p>;
+      return (
+        <p className="results error">
+          {codeName}: {state.message}
+        </p>
+      );
   }
   const { result } = state;
   const outcome = OUTCOME[result.status];
@@ -82,7 +89,9 @@ function CustomOutput({ state }: { state: CustomState }) {
   return (
     <div className="test-detail">
       <div className="detail-header">
-        <strong className={`summary ${outcome.className}`}>{headline}</strong>
+        <strong className={`summary ${outcome.className}`}>
+          {codeName} · {headline}
+        </strong>
         <span className="muted">
           {result.durationMs} ms · exit code {result.exitCode ?? "none"}
         </span>

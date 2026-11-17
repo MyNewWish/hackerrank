@@ -87,6 +87,15 @@ test("an undefined name yields one diagnostic on the name", async () => {
   expect(diagnostics[0]!.message).toContain("undefined_name");
 }, 30_000);
 
+test("a reference-view document (`<id>:reference`) gets its own diagnostics, apart from the solution's", async () => {
+  const reference = diagnosticsFor("r1:reference", (d) => d.length > 0);
+  const solution = diagnosticsFor("r1", () => true);
+  session.open("r1", "print(1)\n");
+  session.open("r1:reference", "print(undefined_name)\n");
+  expect((await reference)[0]!.message).toContain("undefined_name");
+  expect(await solution).toEqual([]);
+}, 30_000);
+
 test("a syntax error yields a diagnostic that clears once a change fixes it", async () => {
   const broken = diagnosticsFor("d2", (d) => d.length > 0);
   session.open("d2", "def f(:\n    pass\n");

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createPracticeService } from "../src/practice";
 import { makeTree, SUM_REFERENCE, sumQuestionFiles, writeTree } from "./helpers";
@@ -71,33 +71,33 @@ describe("practice service", () => {
     const bankDir = bankWith(sumQuestionFiles("q1_sum/"));
     const service = createPracticeService({ bankDir });
 
-    expect(service.readSolution("q1")).toBe("");
+    expect(service.readCode("q1", "solution")).toBe("");
     expect(existsSync(join(dirname(bankDir), "workspace"))).toBe(false);
   });
 
   test("saved code lands in workspace/<id>_solution.py next to the bank and is read back", () => {
     const bankDir = bankWith(sumQuestionFiles("q1_sum/"));
-    createPracticeService({ bankDir }).writeSolution("q1", "print(1)\n");
+    createPracticeService({ bankDir }).writeCode("q1", "solution", "print(1)\n");
 
     const file = join(dirname(bankDir), "workspace", "q1_solution.py");
     expect(readFileSync(file, "utf8")).toBe("print(1)\n");
     // A fresh service (an app restart) sees the same code.
-    expect(createPracticeService({ bankDir }).readSolution("q1")).toBe("print(1)\n");
+    expect(createPracticeService({ bankDir }).readCode("q1", "solution")).toBe("print(1)\n");
   });
 
   test("never writes a solution for an id outside the bank", () => {
     const service = createPracticeService({ bankDir: bankWith(sumQuestionFiles("q1_sum/")) });
 
-    expect(() => service.writeSolution("../evil", "x")).toThrow();
-    expect(() => service.readSolution("q7")).toThrow('No question "q7"');
+    expect(() => service.writeCode("../evil", "solution", "x")).toThrow();
+    expect(() => service.readCode("q7", "solution")).toThrow('No question "q7"');
   });
 
   test("Run saves the code, then grades it on the sample tests only", async () => {
     const service = createPracticeService({ bankDir: bankWith(sumQuestionFiles("q1_sum/")) });
 
-    const report = await service.run("q1", SUM_REFERENCE);
+    const report = await service.run("q1", "solution", SUM_REFERENCE);
 
-    expect(service.readSolution("q1")).toBe(SUM_REFERENCE);
+    expect(service.readCode("q1", "solution")).toBe(SUM_REFERENCE);
     expect(report.results.map((r) => [r.testId, r.status])).toEqual([
       ["part1/sample/01", "pass"],
       ["part2/sample/01", "pass"],
@@ -108,7 +108,7 @@ describe("practice service", () => {
   test("Submit grades every test, sample and hidden, part by part", async () => {
     const service = createPracticeService({ bankDir: bankWith(sumQuestionFiles("q1_sum/")) });
 
-    const report = await service.run("q1", SUM_REFERENCE, "submit");
+    const report = await service.run("q1", "solution", SUM_REFERENCE, "submit");
 
     expect(report.results.map((r) => [r.testId, r.status])).toEqual([
       ["part1/sample/01", "pass"],
@@ -124,7 +124,7 @@ describe("practice service", () => {
     const service = createPracticeService({ bankDir: bankWith(sumQuestionFiles("q1_sum/")) });
     const streamed: unknown[] = [];
 
-    const report = await service.run("q1", SUM_REFERENCE, "submit", (r) => streamed.push(r));
+    const report = await service.run("q1", "solution", SUM_REFERENCE, "submit", (r) => streamed.push(r));
 
     expect(streamed).toEqual(report.results);
     expect(report.results[1]).toMatchObject({
@@ -139,7 +139,7 @@ describe("practice service", () => {
   test("a solution that only handles one pair passes fewer sample tests", async () => {
     const service = createPracticeService({ bankDir: bankWith(sumQuestionFiles("q1_sum/")) });
 
-    const report = await service.run("q1", "a, b = map(int, input().split())\nprint(a + b)\n");
+    const report = await service.run("q1", "solution", "a, b = map(int, input().split())\nprint(a + b)\n");
 
     expect(report.results.map((r) => r.status)).toEqual(["pass", "wrong"]);
     expect([report.summary.passed, report.summary.total]).toEqual([1, 2]);
@@ -149,9 +149,9 @@ describe("practice service", () => {
     const service = createPracticeService({ bankDir: bankWith(sumQuestionFiles("q1_sum/")) });
     const code = 'import sys\nprint(sys.stdin.read().upper(), end="")\nprint("oops", file=sys.stderr)\nsys.exit(3)\n';
 
-    const result = await service.runCustom("q1", code, "hello\nworld\n");
+    const result = await service.runCustom("q1", "solution", code, "hello\nworld\n");
 
-    expect(service.readSolution("q1")).toBe(code);
+    expect(service.readCode("q1", "solution")).toBe(code);
     expect(result).toEqual({
       status: "error",
       stdout: "HELLO\nWORLD\n",
@@ -166,7 +166,7 @@ describe("practice service", () => {
       bankDir: bankWith(sumQuestionFiles("q1_sum/", "timeLimitMs: 500\n")),
     });
 
-    const result = await service.runCustom("q1", "while True:\n    pass\n", "");
+    const result = await service.runCustom("q1", "solution", "while True:\n    pass\n", "");
 
     expect(result).toMatchObject({ status: "timeout", note: "Time limit exceeded (500 ms)" });
   });
@@ -178,7 +178,7 @@ describe("practice service", () => {
     });
 
     expect(await service.detectPython()).toEqual({ ok: false, error: expect.stringContaining("definitely-not-a-python") });
-    await expect(service.run("q1", SUM_REFERENCE)).rejects.toThrow("definitely-not-a-python");
+    await expect(service.run("q1", "solution", SUM_REFERENCE)).rejects.toThrow("definitely-not-a-python");
   });
 
   test("an invalid Python override says to fix or clear it in settings", async () => {
@@ -212,8 +212,106 @@ describe("practice service", () => {
 
   test("a bank in any folder keeps its workspace as that folder's sibling", () => {
     const bankDir = join(makeTree(sumQuestionFiles("elsewhere/my-bank/q1_sum/")), "elsewhere", "my-bank");
-    createPracticeService({ bankDir }).writeSolution("q1", "print(1)\n");
+    createPracticeService({ bankDir }).writeCode("q1", "solution", "print(1)\n");
 
     expect(readFileSync(join(bankDir, "..", "workspace", "q1_solution.py"), "utf8")).toBe("print(1)\n");
+  });
+});
+
+describe("practice service: reference view", () => {
+  /** The sum question with its `reference.py`; returns the bank and its workspace. */
+  function sumBank(reference = SUM_REFERENCE) {
+    const bankDir = bankWith({ ...sumQuestionFiles("q1_sum/"), "q1_sum/reference.py": reference });
+    return {
+      bankDir,
+      bankReference: join(bankDir, "q1_sum", "reference.py"),
+      workspace: join(dirname(bankDir), "workspace"),
+    };
+  }
+
+  test("the first reveal copies the bank's reference.py into workspace/<id>_reference.py and returns it", () => {
+    const { bankDir, bankReference, workspace } = sumBank();
+    const service = createPracticeService({ bankDir });
+
+    expect(service.readCode("q1", "reference")).toBe(SUM_REFERENCE);
+    expect(readFileSync(join(workspace, "q1_reference.py"), "utf8")).toBe(SUM_REFERENCE);
+    expect(readFileSync(bankReference, "utf8")).toBe(SUM_REFERENCE);
+    expect(existsSync(join(workspace, "q1_solution.py"))).toBe(false);
+  });
+
+  test("the reference copy is a snapshot: later edits to the bank's reference.py don't replace it", () => {
+    const { bankDir, bankReference } = sumBank();
+    const service = createPracticeService({ bankDir });
+    service.readCode("q1", "reference");
+
+    writeFileSync(bankReference, "print('updated')\n");
+
+    expect(service.readCode("q1", "reference")).toBe(SUM_REFERENCE);
+  });
+
+  test("editing the reference changes only the reference copy, never my solution or the bank", () => {
+    const { bankDir, bankReference, workspace } = sumBank();
+    const service = createPracticeService({ bankDir });
+    service.writeCode("q1", "solution", "print('mine')\n");
+    service.readCode("q1", "reference");
+
+    service.writeCode("q1", "reference", "print('tinkered')\n");
+
+    expect(service.readCode("q1", "reference")).toBe("print('tinkered')\n");
+    expect(createPracticeService({ bankDir }).readCode("q1", "reference")).toBe("print('tinkered')\n");
+    expect(readFileSync(join(workspace, "q1_solution.py"), "utf8")).toBe("print('mine')\n");
+    expect(readFileSync(bankReference, "utf8")).toBe(SUM_REFERENCE);
+  });
+
+  test("Submit in the reference view grades the reference copy; the solution view still grades my solution", async () => {
+    const { bankDir } = sumBank();
+    const service = createPracticeService({ bankDir });
+    const wrong = "print(-1)\n";
+    service.writeCode("q1", "solution", wrong);
+
+    const reference = await service.run("q1", "reference", service.readCode("q1", "reference"), "submit");
+    const mine = await service.run("q1", "solution", wrong, "submit");
+
+    expect([reference.summary.passed, reference.summary.total]).toEqual([5, 5]);
+    expect(mine.summary.passed).toBe(0);
+    expect(service.readCode("q1", "solution")).toBe(wrong);
+  });
+
+  test("a custom run in the reference view runs the reference copy", async () => {
+    const { bankDir } = sumBank();
+    const service = createPracticeService({ bankDir });
+    service.writeCode("q1", "solution", "print('mine')\n");
+
+    const result = await service.runCustom("q1", "reference", service.readCode("q1", "reference"), "4 5\n");
+
+    expect(result).toMatchObject({ status: "ok", stdout: "9\n" });
+    expect(service.readCode("q1", "solution")).toBe("print('mine')\n");
+  });
+
+  test("the reference copy is modified only once edited, and Recover restores the bank's current reference.py", () => {
+    const { bankDir, bankReference } = sumBank();
+    const service = createPracticeService({ bankDir });
+
+    expect(service.referenceStatus("q1")).toEqual({ modified: false });
+    service.readCode("q1", "reference");
+    expect(service.referenceStatus("q1")).toEqual({ modified: false });
+
+    service.writeCode("q1", "reference", "print('tinkered')\n");
+    expect(service.referenceStatus("q1")).toEqual({ modified: true });
+
+    // A bank fix made after the first reveal is what Recover brings back.
+    writeFileSync(bankReference, "print('fixed')\n");
+    expect(service.recoverReference("q1")).toBe("print('fixed')\n");
+    expect(service.readCode("q1", "reference")).toBe("print('fixed')\n");
+    expect(service.referenceStatus("q1")).toEqual({ modified: false });
+  });
+
+  test("a question with no reference.py says so on reveal and creates no reference copy", () => {
+    const bankDir = bankWith(sumQuestionFiles("q1_sum/"));
+    const service = createPracticeService({ bankDir });
+
+    expect(() => service.readCode("q1", "reference")).toThrow('Question "q1" has no reference.py');
+    expect(existsSync(join(dirname(bankDir), "workspace", "q1_reference.py"))).toBe(false);
+    expect(service.referenceStatus("q1")).toEqual({ modified: false });
   });
 });

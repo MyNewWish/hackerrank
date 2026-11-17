@@ -2,9 +2,18 @@ import Editor from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import type { DiscoverResult, IdeMode, LspStatus, QuestionSummary, QuestionView, RunMode, Settings } from "../../shared/api";
+import type {
+  CodeView,
+  DiscoverResult,
+  IdeMode,
+  LspStatus,
+  QuestionSummary,
+  QuestionView,
+  RunMode,
+  Settings,
+} from "../../shared/api";
 import { CUSTOM_STDIN_ID, CustomRun, type CustomState } from "./CustomRun";
-import { Results, type RunState } from "./Results";
+import { Results, VIEW_NAME, type RunState } from "./Results";
 import { applyIdeMode, setPyrightAvailable, trackEditor } from "./monaco";
 import { SettingsDialog } from "./SettingsDialog";
 import { shortcutAction } from "./shortcuts";
@@ -22,10 +31,25 @@ const AUTOSAVE_DELAY_MS = 500;
 const IS_MAC = navigator.userAgent.includes("Macintosh");
 const MOD = IS_MAC ? "⌘" : "Ctrl";
 
-/** The open question with the code that belongs to it, loaded together so they never mismatch. */
+const VIEW_OPTIONS: { view: CodeView; title: string }[] = [
+  { view: "solution", title: "Show your own code" },
+  { view: "reference", title: "Show the question's reference solution (your own copy, which you may edit)" },
+];
+
+/**
+ * The open question, which code the editor shows (`view`) and that code, loaded together so they
+ * never mismatch. `codeError` instead of `initialCode` when the code could not be read.
+ */
 interface OpenQuestion {
   question: QuestionView;
+  view: CodeView;
   initialCode: string;
+  codeError?: string;
+}
+
+/** The editor's pyright document: each view is its own, so diagnostics never mix. */
+function documentId({ question, view }: OpenQuestion): string {
+  return view === "solution" ? question.id : `${question.id}:reference`;
 }
 
 type ResultsTab = "tests" | "custom";
@@ -45,7 +69,28 @@ export function App() {
   const code = useRef("");
   /** The question most recently picked; replies for any other question arrived too late and are dropped. */
   const current = useRef<string>(undefined);
-  const autosave = useAutosave(setSaveError);
+  /** The view the user most recently picked; replies for the other view arrived too late and are dropped. */
+  const currentView = useRef<CodeView>("solution");
+  /** Questions whose reference the user has confirmed revealing, kept while the app is open. */
+  const revealed = useRef(new Set<string>());
+  /** Whether the open reference copy differs from the bank's `reference.py`; enables Recover. */
+  const [referenceModified, setReferenceModified] = useState(false);
+  /** Numbers reference checks, so a slow earlier answer cannot overwrite a later one. */
+  const referenceSeq = useRef(0);
+  /** Re-reads whether question `id`'s reference copy is modified, if the reference is still on screen. */
+  const checkReference = useCallback(async (id: string) => {
+    const seq = ++referenceSeq.current;
+    try {
+      const { modified } = await api.referenceStatus(id);
+      const latest = referenceSeq.current === seq;
+      if (latest && current.current === id && currentView.current === "reference") setReferenceModified(modified);
+    } catch (e) {
+      console.error("could not check the reference copy:", e);
+    }
+  }, []);
+  const autosave = useAutosave(setSaveError, (saved) => {
+    if (saved.view === "reference") void checkReference(saved.id);
+  });
   const editorRef = useRef<editor.IStandaloneCodeEditor>(undefined);
   /** When each question's stopwatch started (its first keystroke), kept while the app is open. */
   const [startedAt, setStartedAt] = useState<Record<string, number>>({});
@@ -63,20 +108,27 @@ export function App() {
     async (summary: QuestionSummary | undefined) => {
       const id = summary?.id;
       current.current = id;
+      // Every question opens on my solution, never on its answer.
+      currentView.current = "solution";
       setSelectedId(id);
       await autosave.flush();
       setRun({ kind: "idle" });
       setCustom({ kind: "idle" });
+      referenceSeq.current++; // drop answers about the question being left
+      setReferenceModified(false);
       if (!summary?.ok) {
         setOpen(undefined);
         setLoadError(undefined);
         return;
       }
       try {
-        const [question, initialCode] = await Promise.all([api.loadQuestion(summary.id), api.readSolution(summary.id)]);
+        const [question, initialCode] = await Promise.all([
+          api.loadQuestion(summary.id),
+          api.readCode(summary.id, "solution"),
+        ]);
         if (current.current !== id) return;
         code.current = initialCode;
-        setOpen({ question, initialCode });
+        setOpen({ question, view: "solution", initialCode });
         setLoadError(undefined);
       } catch (e) {
         if (current.current !== id) return;
@@ -176,6 +228,7 @@ export function App() {
       current.current = undefined;
       setStartedAt({});
       setCustomInputs({});
+      revealed.current.clear();
     }
     setSettings(saved);
     setEditingSettings(false);
@@ -193,60 +246,138 @@ export function App() {
    * Runs `job` for the open question unless a run is already in progress: Run, Submit and a
    * custom run share one lock, so they never overlap. Each of them saves the code itself.
    */
-  const withRunLock = async (job: (question: QuestionView) => Promise<void>) => {
-    if (!open || !python?.ok || busy.current) return;
+  const withRunLock = (job: (question: QuestionView, view: CodeView) => Promise<void>) => {
+    if (!open || open.codeError !== undefined || !python?.ok) return;
+    const { question, view } = open;
+    return withLock(() => {
+      autosave.cancel();
+      return job(question, view);
+    });
+  };
+
+  /**
+   * Runs `job` unless a run, view switch or Recover is in progress. They share one lock (and the
+   * toolbar's `running` state), so a run never grades code other than what is on screen.
+   */
+  const withLock = async (job: () => Promise<void>) => {
+    if (busy.current) return;
     busy.current = true;
     setRunning(true);
-    autosave.cancel();
     try {
-      await job(open.question);
+      await job();
     } finally {
       busy.current = false;
       setRunning(false);
     }
   };
 
-  /** Saves, then runs the sample tests (`run`) or every test (`submit`), showing results as they finish. */
+  /**
+   * Saves, then runs the sample tests (`run`) or every test (`submit`) on the code on screen (my
+   * solution or the reference copy), showing results as they finish.
+   */
   const startRun = (mode: RunMode) =>
-    withRunLock(async ({ id }) => {
+    withRunLock(async ({ id }, view) => {
       setTab("tests");
       const runId = ++runSeq.current;
-      setRun({ kind: "active", runId, mode, results: [], finished: false });
+      setRun({ kind: "active", runId, view, mode, results: [], finished: false });
       /** Updates the run state only while it still shows this run (the user may have switched question). */
       const updateThisRun = (next: (s: Extract<RunState, { kind: "active" }>) => RunState) =>
         setRun((s) => (s.kind === "active" && s.runId === runId ? next(s) : s));
       try {
-        const report = await api.run(id, code.current, mode, (result) =>
+        const report = await api.run(id, view, code.current, mode, (result) =>
           updateThisRun((s) => ({ ...s, results: [...s.results, result] })),
         );
         updateThisRun((s) => ({ ...s, results: report.results, finished: true }));
       } catch (e) {
-        updateThisRun(() => ({ kind: "failed", mode, message: errorMessage(e) }));
+        updateThisRun(() => ({ kind: "failed", view, mode, message: errorMessage(e) }));
       }
+      // The run saved the code.
+      if (view === "reference") void checkReference(id);
     });
 
-  /** Saves, then runs the code once on the Custom tab's stdin, with no grading. */
+  /** Saves, then runs the code on screen once on the Custom tab's stdin, with no grading. */
   const startCustomRun = () =>
-    withRunLock(async ({ id }) => {
+    withRunLock(async ({ id }, view) => {
       setCustom({ kind: "running" });
+      const stillShown = () => current.current === id && currentView.current === view;
       try {
-        const result = await api.runCustom(id, code.current, customInputs[id] ?? "");
-        if (current.current === id) setCustom({ kind: "done", result });
+        const result = await api.runCustom(id, view, code.current, customInputs[id] ?? "");
+        if (stillShown()) setCustom({ kind: "done", result });
       } catch (e) {
-        if (current.current === id) setCustom({ kind: "failed", message: errorMessage(e) });
+        if (stillShown()) setCustom({ kind: "failed", message: errorMessage(e) });
       }
+      if (view === "reference") void checkReference(id);
     });
 
   /** After confirmation, empties the editor and the saved file. The stopwatch keeps running. */
   const resetCode = async () => {
-    if (!open) return;
+    if (!open || open.view !== "solution") return;
     const { id } = open.question;
-    // Another question is loading, or a run is grading the saved file: leave the code alone.
-    if (current.current !== id || busy.current) return;
+    // Another question or view is loading, or a run is grading the saved file: leave the code alone.
+    if (current.current !== id || currentView.current !== "solution" || busy.current) return;
     if (!window.confirm(`Reset ${id}? This empties the editor and your saved code for this question.`)) return;
     // The change event queues the empty file's save; flush writes it now.
     editorRef.current?.setValue("");
     await autosave.flush();
+  };
+
+  /** After confirmation, replaces the reference copy (and the editor) with the bank's current `reference.py`. */
+  const recoverReference = async () => {
+    if (!open || open.view !== "reference" || open.codeError !== undefined) return;
+    const { id } = open.question;
+    if (current.current !== id || currentView.current !== "reference" || busy.current) return;
+    const ask = `Recover the reference for ${id}? This replaces your edited reference copy with the question bank's reference.py.`;
+    if (!window.confirm(ask)) return;
+    await withLock(async () => {
+      autosave.cancel(); // a pending save of the edits being thrown away
+      try {
+        const recovered = await api.recoverReference(id);
+        if (current.current !== id || currentView.current !== "reference") return;
+        // A flush, so the stopwatch ignores it; the save it queues writes the same text.
+        editorRef.current?.setValue(recovered);
+        await autosave.flush();
+      } catch (e) {
+        setSaveError(errorMessage(e));
+      }
+      void checkReference(id);
+    });
+  };
+
+  /**
+   * Shows my solution or the reference copy in the editor. The first reveal of a question's
+   * reference asks first, since peeking spoils the practice. Results belong to the code on screen,
+   * so both result tabs are cleared.
+   */
+  const switchView = async (view: CodeView) => {
+    if (!open || busy.current || view === currentView.current) return;
+    const { question } = open;
+    const { id } = question;
+    if (current.current !== id) return;
+    if (view === "reference" && !revealed.current.has(id)) {
+      const ask = `Show the reference solution for ${id}? Looking before your timed attempt spoils the question.`;
+      if (!window.confirm(ask)) return;
+      revealed.current.add(id);
+    }
+    await withLock(async () => {
+      currentView.current = view;
+      await autosave.flush();
+      setRun({ kind: "idle" });
+      setCustom({ kind: "idle" });
+      referenceSeq.current++; // drop answers about the view being left
+      setReferenceModified(false);
+      const stillWanted = () => current.current === id && currentView.current === view;
+      try {
+        const initialCode = await api.readCode(id, view);
+        if (!stillWanted()) return;
+        code.current = initialCode;
+        setOpen({ question, view, initialCode });
+        if (view === "reference") void checkReference(id);
+      } catch (e) {
+        if (!stillWanted()) return;
+        code.current = "";
+        setOpen({ question, view, initialCode: "", codeError: errorMessage(e) });
+      }
+    });
   };
 
   // Capture phase, so the editor never sees the shortcut (Monaco binds Ctrl+Enter itself).
@@ -312,15 +443,45 @@ export function App() {
         >
           Settings
         </button>
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => void resetCode()}
-          disabled={!open || running}
-          title="Empty the editor and the saved code for this question"
-        >
-          Reset
-        </button>
+        {open?.view === "reference" ? (
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => void recoverReference()}
+            disabled={running || !referenceModified}
+            title={
+              referenceModified
+                ? "Replace your edited reference copy with the question bank's reference.py"
+                : "The reference copy matches the question bank's reference.py"
+            }
+          >
+            Recover
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => void resetCode()}
+            disabled={!open || running}
+            title="Empty the editor and the saved code for this question"
+          >
+            Reset
+          </button>
+        )}
+        <div className="ide-mode" role="group" aria-label="Code shown">
+          {VIEW_OPTIONS.map(({ view, title }) => (
+            <button
+              key={view}
+              type="button"
+              aria-pressed={open?.view === view}
+              onClick={() => void switchView(view)}
+              disabled={!open || running}
+              title={title}
+            >
+              {VIEW_NAME[view]}
+            </button>
+          ))}
+        </div>
         <div className="ide-mode" role="group" aria-label="Editor mode">
           {IDE_MODE_OPTIONS.map(({ mode, label, title }) => (
             <button
@@ -366,9 +527,13 @@ export function App() {
         <Panel minSize="20">
           <Group orientation="vertical">
             <Panel defaultSize="65" minSize="10">
-              {open && (
+              {open?.codeError !== undefined ? (
+                <p className="placeholder error" role="alert">
+                  Cannot show the reference: {open.codeError}.
+                </p>
+              ) : open && (
                 <Editor
-                  key={open.question.id}
+                  key={documentId(open)}
                   language="python"
                   defaultValue={open.initialCode}
                   theme={dark ? "vs-dark" : "light"}
@@ -381,14 +546,18 @@ export function App() {
                   }}
                   onMount={(instance) => {
                     editorRef.current = instance;
-                    trackEditor(instance, open.question.id);
+                    trackEditor(instance, documentId(open));
                   }}
                   onChange={(value, event) => {
-                    const { id } = open.question;
+                    const { question, view } = open;
+                    const { id } = question;
                     code.current = value ?? "";
-                    autosave.schedule(id, code.current);
-                    // A flush is a programmatic replace (Reset), not the user typing.
-                    if (!event.isFlush) setStartedAt((all) => (id in all ? all : { ...all, [id]: Date.now() }));
+                    autosave.schedule(id, view, code.current);
+                    // Only typing in my solution starts the stopwatch: a flush is a programmatic
+                    // replace (Reset, Recover), and the reference is not my attempt.
+                    if (!event.isFlush && view === "solution") {
+                      setStartedAt((all) => (id in all ? all : { ...all, [id]: Date.now() }));
+                    }
                   }}
                 />
               )}
@@ -419,6 +588,7 @@ export function App() {
                       onRun={() => void startCustomRun()}
                       disabled={running || !python?.ok}
                       shortcut={`${MOD}+Enter`}
+                      codeName={VIEW_NAME[open.view]}
                     />
                   ) : (
                     <p className="placeholder">Open a question to run code on custom input.</p>
@@ -507,12 +677,22 @@ function NothingOpen(props: {
   return <p className="placeholder">Loading…</p>;
 }
 
+/** Where an autosave writes: one view of one question. */
+interface SaveTarget {
+  id: string;
+  view: CodeView;
+}
+
 /**
  * Saves the editor's code a moment after the last keystroke; `flush` saves any pending code now.
- * Reports each save's outcome through `onSaved` (an error message, or undefined once a save succeeds).
+ * Each save carries the view it was typed in, so a switch never saves code into the other view.
+ * Reports each save's outcome through `onSaved` (an error message, or undefined once a save
+ * succeeds), and each successful async save through `onWritten`.
  */
-function useAutosave(onSaved: (error: string | undefined) => void) {
-  const pending = useRef<{ id: string; code: string; timer: ReturnType<typeof setTimeout> }>(undefined);
+function useAutosave(onSaved: (error: string | undefined) => void, onWritten: (saved: SaveTarget) => void) {
+  const pending = useRef<SaveTarget & { code: string; timer: ReturnType<typeof setTimeout> }>(undefined);
+  const written = useRef(onWritten);
+  written.current = onWritten;
   const [autosave] = useState(() => {
     /** Drops the pending save, returning it. */
     const cancel = () => {
@@ -525,20 +705,22 @@ function useAutosave(onSaved: (error: string | undefined) => void) {
       const save = cancel();
       if (!save) return;
       try {
-        await api.writeSolution(save.id, save.code);
+        await api.writeCode(save.id, save.view, save.code);
         onSaved(undefined);
       } catch (e) {
         onSaved(errorMessage(e));
+        return;
       }
+      written.current({ id: save.id, view: save.view });
     };
-    const schedule = (id: string, code: string) => {
+    const schedule = (id: string, view: CodeView, code: string) => {
       clearTimeout(pending.current?.timer);
-      pending.current = { id, code, timer: setTimeout(() => void flush(), AUTOSAVE_DELAY_MS) };
+      pending.current = { id, view, code, timer: setTimeout(() => void flush(), AUTOSAVE_DELAY_MS) };
     };
     /** Saves synchronously: an async save started while the window closes may never land. */
     const flushNow = () => {
       const save = cancel();
-      if (save) api.writeSolutionSync(save.id, save.code);
+      if (save) api.writeCodeSync(save.id, save.view, save.code);
     };
     return { schedule, flush, cancel, flushNow };
   });

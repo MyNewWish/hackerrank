@@ -45,7 +45,9 @@ export interface RunReport {
 export interface RunOptions {
   python: PythonInfo;
   question: Question;
-  /** Folder holding `<id>_solution.py`; also the solution's working directory. */
+  /** The Python program to grade, e.g. the question's solution file or its reference copy. */
+  file: string;
+  /** The program's working directory: the workspace. */
   workspaceDir: string;
   mode: RunMode;
   /** Called as each test finishes, in run order. */
@@ -59,10 +61,14 @@ export function solutionPath(workspaceDir: string, questionId: string): string {
   return join(workspaceDir, `${questionId}_solution.py`);
 }
 
-/** Runs the question's solution against the tests selected by `mode`, one fresh process per test. */
+/** Path of the reference copy for `questionId` inside `workspaceDir`: the candidate's snapshot of the bank's reference. */
+export function referencePath(workspaceDir: string, questionId: string): string {
+  return join(workspaceDir, `${questionId}_reference.py`);
+}
+
+/** Runs `file` against the question's tests selected by `mode`, one fresh process per test. */
 export async function runQuestion(options: RunOptions): Promise<RunReport> {
-  const { python, question, workspaceDir, mode, onResult, signal } = options;
-  const solution = solutionPath(workspaceDir, question.id);
+  const { python, question, file, workspaceDir, mode, onResult, signal } = options;
   const tests = question.parts.flatMap((p) =>
     p.tests.filter((t) => runsTest(mode, t.kind)),
   );
@@ -70,7 +76,7 @@ export async function runQuestion(options: RunOptions): Promise<RunReport> {
   const results: TestResult[] = [];
   for (const test of tests) {
     if (signal?.aborted) break;
-    const result = await runTest(python, solution, workspaceDir, test, question, signal);
+    const result = await runTest(python, file, workspaceDir, test, question, signal);
     if (!result) break;
     results.push(result);
     onResult?.(result);
@@ -81,7 +87,7 @@ export async function runQuestion(options: RunOptions): Promise<RunReport> {
 
 async function runTest(
   python: PythonInfo,
-  solution: string,
+  file: string,
   cwd: string,
   test: TestCase,
   question: Question,
@@ -89,7 +95,7 @@ async function runTest(
 ): Promise<TestResult | undefined> {
   const { status, ...run } = await runProgram({
     python,
-    file: solution,
+    file,
     cwd,
     input: test.input,
     timeLimitMs: question.timeLimitMs,

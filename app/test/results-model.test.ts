@@ -65,7 +65,7 @@ describe("results model", () => {
     const bankDir = join(makeTree(sumQuestionFiles("questions/q1_sum/")), "questions");
     const service = createPracticeService({ bankDir });
     // Handles one pair per input, so part1 passes and part2 (several pairs) fails.
-    const report = await service.run("q1", "a, b = map(int, input().split())\nprint(a + b)\n", "submit");
+    const report = await service.run("q1", "solution", "a, b = map(int, input().split())\nprint(a + b)\n", "submit");
 
     const view = resultsView(service.loadQuestion("q1"), "submit", report.results);
 

@@ -6,13 +6,15 @@ let nextRunId = 0;
 const api: HackrankApi = {
   listQuestions: () => ipcRenderer.invoke(CHANNELS.listQuestions),
   loadQuestion: (id) => ipcRenderer.invoke(CHANNELS.loadQuestion, id),
-  readSolution: (id) => ipcRenderer.invoke(CHANNELS.readSolution, id),
-  writeSolution: (id, code) => ipcRenderer.invoke(CHANNELS.writeSolution, id, code),
-  writeSolutionSync: (id, code) => {
-    const error: unknown = ipcRenderer.sendSync(CHANNELS.writeSolutionSync, id, code);
+  readCode: (id, view) => ipcRenderer.invoke(CHANNELS.readCode, id, view),
+  writeCode: (id, view, code) => ipcRenderer.invoke(CHANNELS.writeCode, id, view, code),
+  writeCodeSync: (id, view, code) => {
+    const error: unknown = ipcRenderer.sendSync(CHANNELS.writeCodeSync, id, view, code);
     if (typeof error === "string") throw new Error(error);
   },
-  run: async (id, code, mode, onResult) => {
+  referenceStatus: (id) => ipcRenderer.invoke(CHANNELS.referenceStatus, id),
+  recoverReference: (id) => ipcRenderer.invoke(CHANNELS.recoverReference, id),
+  run: async (id, view, code, mode, onResult) => {
     // Results of every run arrive on one channel; the run id picks out this run's.
     const runId = ++nextRunId;
     const listener = (_e: IpcRendererEvent, from: unknown, result: GradedTest) => {
@@ -20,12 +22,12 @@ const api: HackrankApi = {
     };
     ipcRenderer.on(CHANNELS.runResult, listener);
     try {
-      return await ipcRenderer.invoke(CHANNELS.run, runId, id, code, mode);
+      return await ipcRenderer.invoke(CHANNELS.run, runId, id, view, code, mode);
     } finally {
       ipcRenderer.removeListener(CHANNELS.runResult, listener);
     }
   },
-  runCustom: (id, code, stdin) => ipcRenderer.invoke(CHANNELS.runCustom, id, code, stdin),
+  runCustom: (id, view, code, stdin) => ipcRenderer.invoke(CHANNELS.runCustom, id, view, code, stdin),
   detectPython: () => ipcRenderer.invoke(CHANNELS.detectPython),
   getSettings: () => ipcRenderer.invoke(CHANNELS.getSettings),
   updateSettings: (settings) => ipcRenderer.invoke(CHANNELS.updateSettings, settings),

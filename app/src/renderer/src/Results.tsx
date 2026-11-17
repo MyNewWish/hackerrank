@@ -1,14 +1,17 @@
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import type { GradedTest, QuestionView, RunMode } from "../../shared/api";
+import type { CodeView, GradedTest, QuestionView, RunMode } from "../../shared/api";
 import { diffOutput, finalNewlineNote, type DiffLine, type Segment } from "./diff";
 import { formatRate, moveSelection, resultsView, type RowStatus, type TestRow } from "./results-model";
 
 export type RunState =
   | { kind: "idle" }
-  /** A run in progress (`finished` false) or complete; `results` grow as tests finish. */
-  | { kind: "active"; runId: number; mode: RunMode; results: GradedTest[]; finished: boolean }
-  | { kind: "failed"; mode: RunMode; message: string };
+  /**
+   * A run in progress (`finished` false) or complete; `results` grow as tests finish. `view` is
+   * the code that was run: my solution or the reference copy.
+   */
+  | { kind: "active"; runId: number; view: CodeView; mode: RunMode; results: GradedTest[]; finished: boolean }
+  | { kind: "failed"; view: CodeView; mode: RunMode; message: string };
 
 const STATUS: Record<RowStatus, { icon: string; text: string }> = {
   pass: { icon: "✓", text: "Passed" },
@@ -19,6 +22,8 @@ const STATUS: Record<RowStatus, { icon: string; text: string }> = {
 };
 
 const MODE_NAME: Record<RunMode, string> = { run: "Sample tests", submit: "All tests" };
+/** Says whose results these are, so the reference's pass rate is never mistaken for mine. */
+export const VIEW_NAME: Record<CodeView, string> = { solution: "My solution", reference: "Reference" };
 
 /**
  * The last run: a summary bar with the overall and per-part pass rates, the tests grouped by
@@ -26,7 +31,13 @@ const MODE_NAME: Record<RunMode, string> = { run: "Sample tests", submit: "All t
  */
 export function Results({ question, state, hint }: { question: QuestionView | undefined; state: RunState; hint: string }) {
   if (state.kind === "idle" || !question) return <p className="placeholder">{hint}</p>;
-  if (state.kind === "failed") return <p className="results error">{state.message}</p>;
+  if (state.kind === "failed") {
+    return (
+      <p className="results error">
+        {VIEW_NAME[state.view]}: {state.message}
+      </p>
+    );
+  }
   // A new run starts with a fresh selection.
   return <RunResults key={state.runId} question={question} state={state} />;
 }
@@ -55,7 +66,7 @@ function RunResults({ question, state }: { question: QuestionView; state: Extrac
     <div className="run-results">
       <div className="summary-bar">
         <span className={`summary ${outcome}`}>
-          {MODE_NAME[state.mode]}: {formatRate(rate)}
+          {VIEW_NAME[state.view]} · {MODE_NAME[state.mode]}: {formatRate(rate)}
           {!state.finished && ` · running ${rate.finished}/${rate.total}…`}
         </span>
         {view.parts.map((p) => (
