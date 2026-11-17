@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
   discoverPython,
+  runProgram,
   runQuestion,
   scanBank,
   solutionPath,
@@ -10,7 +11,7 @@ import {
   type RunMode,
   type TestResult,
 } from "../judge";
-import type { GradedReport, GradedTest, QuestionSummary, QuestionView } from "../shared/api";
+import type { CustomRunResult, GradedReport, GradedTest, QuestionSummary, QuestionView } from "../shared/api";
 
 export interface PracticeServiceOptions {
   /** The question bank folder; the workspace is its sibling `workspace/` folder. */
@@ -51,6 +52,13 @@ export function createPracticeService({ bankDir, pythonOverride }: PracticeServi
   function detectPython(): Promise<DiscoverResult> {
     pythonDiscovery ??= discoverPython(pythonOverride);
     return pythonDiscovery;
+  }
+
+  /** The interpreter, or an error saying why there is none. */
+  async function requirePython() {
+    const found = await detectPython();
+    if (!found.ok) throw new Error(found.error);
+    return found.python;
   }
 
   return {
@@ -106,8 +114,7 @@ export function createPracticeService({ bankDir, pythonOverride }: PracticeServi
       onResult?: (result: GradedTest) => void,
     ): Promise<GradedReport> {
       writeSolution(id, code);
-      const found = await detectPython();
-      if (!found.ok) throw new Error(found.error);
+      const python = await requirePython();
       const q = question(id);
       const tests = new Map(q.parts.flatMap((p) => p.tests).map((t) => [t.id, t]));
       const graded = (result: TestResult): GradedTest => {
@@ -115,13 +122,33 @@ export function createPracticeService({ bankDir, pythonOverride }: PracticeServi
         return { ...result, input: test?.input ?? "", expected: test?.expected ?? "" };
       };
       const report = await runQuestion({
-        python: found.python,
+        python,
         question: q,
         workspaceDir,
         mode,
         onResult: onResult && ((r) => onResult(graded(r))),
       });
       return { ...report, results: report.results.map(graded) };
+    },
+
+    /**
+     * Saves `code`, then runs it once on `stdin` with no grading, under the same time limit,
+     * output cap and fresh-process rules as a graded test.
+     */
+    async runCustom(id: string, code: string, stdin: string): Promise<CustomRunResult> {
+      writeSolution(id, code);
+      const python = await requirePython();
+      const q = question(id);
+      const result = await runProgram({
+        python,
+        file: solutionFile(id),
+        cwd: workspaceDir,
+        input: stdin,
+        timeLimitMs: q.timeLimitMs,
+      });
+      // No signal is passed, so the run is never cancelled.
+      if (result.status === "cancelled") throw new Error("Custom run was cancelled");
+      return { ...result, status: result.status };
     },
   };
 }

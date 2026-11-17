@@ -160,7 +160,8 @@ function TestDetail({ row, result }: { row: TestRow; result: GradedTest }) {
   );
 }
 
-function Section({
+/** A collapsible titled block of the detail pane. */
+export function Section({
   title,
   collapsed = false,
   hint,
@@ -182,7 +183,8 @@ function Section({
   );
 }
 
-function Output({ text, className = "" }: { text: string; className?: string }) {
+/** Program text in a monospace block, or "(empty)". */
+export function Output({ text, className = "" }: { text: string; className?: string }) {
   return text === "" ? <p className="muted empty">(empty)</p> : <pre className={`output ${className}`}>{text}</pre>;
 }
 

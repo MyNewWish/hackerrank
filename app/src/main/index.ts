@@ -40,6 +40,9 @@ function registerIpc(): void {
       if (!event.sender.isDestroyed()) event.sender.send(CHANNELS.runResult, runId, result);
     }),
   );
+  ipcMain.handle(CHANNELS.runCustom, (_e, id, code, stdin) =>
+    service.runCustom(requireString(id), requireString(code), requireString(stdin)),
+  );
   ipcMain.handle(CHANNELS.detectPython, () => service.detectPython());
 }
 

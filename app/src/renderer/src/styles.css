@@ -101,6 +101,7 @@ button.link:hover { text-decoration: underline; }
 .summary.pass { color: var(--pass); }
 .summary.fail { color: var(--fail); }
 .summary.running { color: var(--muted); }
+.summary.neutral { color: var(--fg); }
 .part-rate { color: var(--muted); }
 .results-body { flex: 1 1 auto; min-height: 0; }
 
@@ -138,4 +139,19 @@ button.link:hover { text-decoration: underline; }
 .diff-prefix { user-select: none; color: var(--muted); padding-right: 8px; }
 .diff-line.removed .diff-change { background: var(--diff-mark-removed); color: inherit; border-radius: 2px; }
 .diff-line.added .diff-change { background: var(--diff-mark-added); color: inherit; border-radius: 2px; }
+.results-panel { height: 100%; display: flex; flex-direction: column; }
+.results-tabs { display: flex; gap: 2px; padding: 0 8px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.results-tabs button {
+  padding: 6px 12px; border: none; border-bottom: 2px solid transparent; background: none;
+  color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.results-tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.results-tab-body { flex: 1 1 auto; min-height: 0; }
+.custom-input { height: 100%; display: flex; flex-direction: column; padding: 8px 12px; gap: 6px; font-size: 13px; }
+.custom-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 600; }
+.custom-stdin {
+  flex: 1 1 auto; min-height: 0; resize: none; padding: 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--fg);
+  font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; font-size: 12.5px;
+}
 .save-error { color: var(--fail); font-size: 13px; white-space: nowrap; }

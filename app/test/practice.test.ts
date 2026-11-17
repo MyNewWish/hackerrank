@@ -145,6 +145,32 @@ describe("practice service", () => {
     expect([report.summary.passed, report.summary.total]).toEqual([1, 2]);
   });
 
+  test("a custom run saves the code, runs it on the given stdin and reports output without grading", async () => {
+    const service = createPracticeService({ bankDir: bankWith(sumQuestionFiles("q1_sum/")) });
+    const code = 'import sys\nprint(sys.stdin.read().upper(), end="")\nprint("oops", file=sys.stderr)\nsys.exit(3)\n';
+
+    const result = await service.runCustom("q1", code, "hello\nworld\n");
+
+    expect(service.readSolution("q1")).toBe(code);
+    expect(result).toEqual({
+      status: "error",
+      stdout: "HELLO\nWORLD\n",
+      stderr: "oops\n",
+      exitCode: 3,
+      durationMs: expect.any(Number),
+    });
+  });
+
+  test("a custom run that never ends is stopped at the question's time limit", async () => {
+    const service = createPracticeService({
+      bankDir: bankWith(sumQuestionFiles("q1_sum/", "timeLimitMs: 500\n")),
+    });
+
+    const result = await service.runCustom("q1", "while True:\n    pass\n", "");
+
+    expect(result).toMatchObject({ status: "timeout", note: "Time limit exceeded (500 ms)" });
+  });
+
   test("without a working Python, detection says why and Run refuses", async () => {
     const service = createPracticeService({
       bankDir: bankWith(sumQuestionFiles("q1_sum/")),

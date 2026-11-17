@@ -2,6 +2,7 @@ import Editor from "@monaco-editor/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import type { DiscoverResult, QuestionSummary, QuestionView, RunMode } from "../../shared/api";
+import { CUSTOM_STDIN_ID, CustomRun, type CustomState } from "./CustomRun";
 import { Results, type RunState } from "./Results";
 import { shortcutAction } from "./shortcuts";
 import { Statement } from "./Statement";
@@ -18,6 +19,8 @@ interface OpenQuestion {
   initialCode: string;
 }
 
+type ResultsTab = "tests" | "custom";
+
 export function App() {
   const dark = useDarkMode();
   const [questions, setQuestions] = useState<QuestionSummary[]>([]);
@@ -25,6 +28,10 @@ export function App() {
   const [loadError, setLoadError] = useState<string>();
   const [python, setPython] = useState<DiscoverResult>();
   const [run, setRun] = useState<RunState>({ kind: "idle" });
+  const [tab, setTab] = useState<ResultsTab>("tests");
+  /** Each question's custom stdin, kept while the app is open. */
+  const [customInputs, setCustomInputs] = useState<Record<string, string>>({});
+  const [custom, setCustom] = useState<CustomState>({ kind: "idle" });
   const [saveError, setSaveError] = useState<string>();
   const code = useRef("");
   /** The question most recently picked; replies for any other question arrived too late and are dropped. */
@@ -36,6 +43,7 @@ export function App() {
       current.current = id;
       await autosave.flush();
       setRun({ kind: "idle" });
+      setCustom({ kind: "idle" });
       try {
         const [question, initialCode] = await Promise.all([api.loadQuestion(id), api.readSolution(id)]);
         if (current.current !== id) return;
@@ -67,41 +75,69 @@ export function App() {
   /** Numbers the app's runs, so late results of an earlier run are ignored. */
   const runSeq = useRef(0);
 
-  /** Saves, then runs the sample tests (`run`) or every test (`submit`), showing results as they finish. */
-  const startRun = async (mode: RunMode) => {
+  /**
+   * Runs `job` for the open question unless a run is already in progress: Run, Submit and a
+   * custom run share one lock, so they never overlap. Each of them saves the code itself.
+   */
+  const withRunLock = async (job: (question: QuestionView) => Promise<void>) => {
     if (!open || busy.current) return;
     busy.current = true;
     setRunning(true);
-    const { id } = open.question;
-    const runId = ++runSeq.current;
-    autosave.cancel(); // The run saves the code itself.
-    setRun({ kind: "active", runId, mode, results: [], finished: false });
-    /** Updates the run state only while it still shows this run (the user may have switched question). */
-    const updateThisRun = (next: (s: Extract<RunState, { kind: "active" }>) => RunState) =>
-      setRun((s) => (s.kind === "active" && s.runId === runId ? next(s) : s));
+    autosave.cancel();
     try {
-      const report = await api.run(id, code.current, mode, (result) =>
-        updateThisRun((s) => ({ ...s, results: [...s.results, result] })),
-      );
-      updateThisRun((s) => ({ ...s, results: report.results, finished: true }));
-    } catch (e) {
-      updateThisRun(() => ({ kind: "failed", mode, message: errorMessage(e) }));
+      await job(open.question);
     } finally {
       busy.current = false;
       setRunning(false);
     }
   };
 
+  /** Saves, then runs the sample tests (`run`) or every test (`submit`), showing results as they finish. */
+  const startRun = (mode: RunMode) =>
+    withRunLock(async ({ id }) => {
+      setTab("tests");
+      const runId = ++runSeq.current;
+      setRun({ kind: "active", runId, mode, results: [], finished: false });
+      /** Updates the run state only while it still shows this run (the user may have switched question). */
+      const updateThisRun = (next: (s: Extract<RunState, { kind: "active" }>) => RunState) =>
+        setRun((s) => (s.kind === "active" && s.runId === runId ? next(s) : s));
+      try {
+        const report = await api.run(id, code.current, mode, (result) =>
+          updateThisRun((s) => ({ ...s, results: [...s.results, result] })),
+        );
+        updateThisRun((s) => ({ ...s, results: report.results, finished: true }));
+      } catch (e) {
+        updateThisRun(() => ({ kind: "failed", mode, message: errorMessage(e) }));
+      }
+    });
+
+  /** Saves, then runs the code once on the Custom tab's stdin, with no grading. */
+  const startCustomRun = () =>
+    withRunLock(async ({ id }) => {
+      setCustom({ kind: "running" });
+      try {
+        const result = await api.runCustom(id, code.current, customInputs[id] ?? "");
+        if (current.current === id) setCustom({ kind: "done", result });
+      } catch (e) {
+        if (current.current === id) setCustom({ kind: "failed", message: errorMessage(e) });
+      }
+    });
+
   // Capture phase, so the editor never sees the shortcut (Monaco binds Ctrl+Enter itself).
   const startRunRef = useRef(startRun);
   startRunRef.current = startRun;
+  const startCustomRunRef = useRef(startCustomRun);
+  startCustomRunRef.current = startCustomRun;
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const mode = shortcutAction(e, IS_MAC);
       if (!mode) return;
       e.preventDefault();
       e.stopPropagation();
-      if (!e.repeat) void startRunRef.current(mode);
+      if (e.repeat) return;
+      // Typing custom stdin, either shortcut runs the code on it rather than grading it.
+      if (e.target instanceof HTMLElement && e.target.id === CUSTOM_STDIN_ID) void startCustomRunRef.current();
+      else void startRunRef.current(mode);
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
@@ -178,11 +214,36 @@ export function App() {
             </Panel>
             <Separator className="separator horizontal" />
             <Panel minSize="10">
-              <Results
-                question={open?.question}
-                state={run}
-                hint={`Run (${MOD}+') checks the sample tests; Submit (${MOD}+Enter) runs every test, including hidden ones.`}
-              />
+              <div className="results-panel">
+                <div className="results-tabs" role="tablist" aria-label="Results">
+                  <button type="button" role="tab" aria-selected={tab === "tests"} onClick={() => setTab("tests")}>
+                    Test results
+                  </button>
+                  <button type="button" role="tab" aria-selected={tab === "custom"} onClick={() => setTab("custom")}>
+                    Custom input
+                  </button>
+                </div>
+                <div className="results-tab-body" role="tabpanel">
+                  {tab === "tests" ? (
+                    <Results
+                      question={open?.question}
+                      state={run}
+                      hint={`Run (${MOD}+') checks the sample tests; Submit (${MOD}+Enter) runs every test, including hidden ones.`}
+                    />
+                  ) : open ? (
+                    <CustomRun
+                      input={customInputs[open.question.id] ?? ""}
+                      onInputChange={(input) => setCustomInputs((all) => ({ ...all, [open.question.id]: input }))}
+                      state={custom}
+                      onRun={() => void startCustomRun()}
+                      disabled={running}
+                      shortcut={`${MOD}+Enter`}
+                    />
+                  ) : (
+                    <p className="placeholder">{loadError ?? "Loading…"}</p>
+                  )}
+                </div>
+              </div>
             </Panel>
           </Group>
         </Panel>

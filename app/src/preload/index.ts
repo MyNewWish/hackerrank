@@ -25,6 +25,7 @@ const api: HackrankApi = {
       ipcRenderer.removeListener(CHANNELS.runResult, listener);
     }
   },
+  runCustom: (id, code, stdin) => ipcRenderer.invoke(CHANNELS.runCustom, id, code, stdin),
   detectPython: () => ipcRenderer.invoke(CHANNELS.detectPython),
 };
 

@@ -1,6 +1,6 @@
 // The contract between the renderer and the main process. Only types, constants and pure helpers: safe to import anywhere.
 import type { DiscoverResult } from "../judge/python";
-import type { RunReport, TestResult, TestStatus } from "../judge/runner";
+import type { ProgramResult, RunReport, TestResult, TestStatus } from "../judge/runner";
 import type { Difficulty, RunMode, TestKind, ValidationError } from "../judge/types";
 
 export type { DiscoverResult, RunMode, TestKind, TestStatus };
@@ -16,6 +16,14 @@ export interface GradedTest extends TestResult {
 /** A run's report, with each result carrying its test's input and expected output. */
 export interface GradedReport extends Omit<RunReport, "results"> {
   results: GradedTest[];
+}
+
+/**
+ * One ungraded run on the candidate's own stdin. `ok` = exited 0; `error` = non-zero exit or
+ * output limit; `timeout` = stopped at the question's time limit.
+ */
+export interface CustomRunResult extends Omit<ProgramResult, "status"> {
+  status: Exclude<ProgramResult["status"], "cancelled">;
 }
 
 export type QuestionSummary =
@@ -41,6 +49,7 @@ export const CHANNELS = {
   writeSolution: "solution:write",
   writeSolutionSync: "solution:write-sync",
   run: "run",
+  runCustom: "run:custom",
   /** Main → renderer: one finished test of a run, as `(runId, GradedTest)`. */
   runResult: "run:result",
   detectPython: "python:detect",
@@ -63,5 +72,7 @@ export interface HackrankApi {
    * `onResult` is called as each test finishes, before the returned report resolves.
    */
   run(id: string, code: string, mode: RunMode, onResult: (result: GradedTest) => void): Promise<GradedReport>;
+  /** Saves `code`, then runs it once on `stdin` with no grading. */
+  runCustom(id: string, code: string, stdin: string): Promise<CustomRunResult>;
   detectPython(): Promise<DiscoverResult>;
 }
