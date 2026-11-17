@@ -3,7 +3,7 @@
 import { utilityProcess } from "electron";
 import { createRequire } from "node:module";
 import { createPyrightHost as createHost, type PyrightHost } from "../../lsp/host";
-import type { ForkServer } from "../../lsp/pyright";
+import { unpackedServerEntry, type ForkServer } from "../../lsp/pyright";
 
 export type { PyrightHost };
 
@@ -19,8 +19,9 @@ export function createPyrightHost(options: {
 }): PyrightHost {
   return createHost({
     ...options,
-    // Resolved on each start, so a missing server falls back like a crashed one.
-    serverEntry: () => createRequire(import.meta.url).resolve("pyright/langserver.index.js"),
+    // Resolved on each start, so a missing server falls back like a crashed one. Packaged builds
+    // run the copy unpacked from the app archive (see `asarUnpack` in package.json).
+    serverEntry: () => unpackedServerEntry(createRequire(import.meta.url).resolve("pyright/langserver.index.js")),
     fork,
   });
 }

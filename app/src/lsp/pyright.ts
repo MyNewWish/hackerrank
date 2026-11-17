@@ -83,6 +83,16 @@ const ANALYSIS = { typeCheckingMode: "basic" };
 /** No completions: the server is down, or the document isn't open. */
 export const NO_COMPLETIONS: CompletionList = { isIncomplete: false, items: [] };
 
+/**
+ * Where the server entry that Node resolved can actually be run from. In a packaged build it
+ * resolves inside `app.asar`, which a utility process cannot run and the server cannot read
+ * typeshed from, so it is moved to the `app.asar.unpacked` copy beside it. Dev paths from
+ * `node_modules` are returned unchanged.
+ */
+export function unpackedServerEntry(resolved: string): string {
+  return resolved.replace(/([\\/])app\.asar(?=[\\/])/, "$1app.asar.unpacked");
+}
+
 /** `3.12.1` → `3.12`, the form pyright's `pythonVersion` takes. */
 export function majorMinor(version: string): string | undefined {
   return /^(\d+\.\d+)/.exec(version)?.[1];

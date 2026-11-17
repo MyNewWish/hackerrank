@@ -63,6 +63,9 @@ lsp/convert.ts (pure, unit-tested)      settings store from #9 (+ ideMode)
 - Find the server entry with `require.resolve("pyright/langserver.index.js")`, with a path
   fixed up for `app.asar.unpacked` in packaged builds.
 - Keep main's bundle from inlining pyright (mark it `external` in `electron.vite.config.ts`).
+- `asarUnpack: ["node_modules/pyright/**"]` sits under `build` in `app/package.json`, for the
+  electron-builder setup to pick up. Measured with pyright 1.1.414: the unpacked package is about
+  29 MB on disk, 23 MB of it the typeshed stubs.
 
 ## Tests
 - `test/lsp.test.ts` (integration): start the real server and open a document. Then assert that:
