@@ -3,6 +3,7 @@ import type { editor } from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import type { DiscoverResult, QuestionSummary, QuestionView, RunMode, Settings } from "../../shared/api";
+import { attachPyright } from "./lsp/providers";
 import { CUSTOM_STDIN_ID, CustomRun, type CustomState } from "./CustomRun";
 import { Results, type RunState } from "./Results";
 import { SettingsDialog } from "./SettingsDialog";
@@ -322,9 +323,17 @@ export function App() {
                   language="python"
                   defaultValue={open.initialCode}
                   theme={dark ? "vs-dark" : "light"}
-                  options={{ fontSize: 14, minimap: { enabled: false }, automaticLayout: true, tabSize: 4 }}
+                  options={{
+                    fontSize: 14,
+                    minimap: { enabled: false },
+                    automaticLayout: true,
+                    tabSize: 4,
+                    // Pyright's completions already include the file's names.
+                    wordBasedSuggestions: "off",
+                  }}
                   onMount={(instance) => {
                     editorRef.current = instance;
+                    attachPyright(instance, open.question.id);
                   }}
                   onChange={(value, event) => {
                     const { id } = open.question;

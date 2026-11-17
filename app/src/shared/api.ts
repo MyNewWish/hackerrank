@@ -2,8 +2,9 @@
 import type { DiscoverResult } from "../judge/python";
 import type { ProgramResult, RunReport, TestResult, TestStatus } from "../judge/runner";
 import type { Difficulty, RunMode, TestKind, ValidationError } from "../judge/types";
+import type { CompletionItem, CompletionList, Position } from "vscode-languageserver-protocol";
 
-export type { DiscoverResult, RunMode, TestKind, TestStatus };
+export type { CompletionItem, CompletionList, DiscoverResult, Position, RunMode, TestKind, TestStatus };
 // Pure and dependency-free, so the renderer plans a run by the same rule the judge runs it by.
 export { RUN_MODES, runsTest } from "../judge/types";
 
@@ -63,6 +64,11 @@ export const CHANNELS = {
   detectPython: "python:detect",
   getSettings: "settings:get",
   updateSettings: "settings:update",
+  lspOpen: "lsp:open",
+  lspChange: "lsp:change",
+  lspClose: "lsp:close",
+  lspCompletion: "lsp:completion",
+  lspResolveCompletion: "lsp:resolve-completion",
 } as const;
 
 /**
@@ -93,4 +99,16 @@ export interface HackrankApi {
    * to them. Rejects, changing nothing, if the bank folder does not exist.
    */
   updateSettings(settings: Settings): Promise<Settings>;
+
+  // Python language features, from a pyright server the main process starts on the first `lspOpen`.
+  // Each open question is one in-memory document; the server never reads the saved file.
+  /** Opens question `id`'s document with the editor's text. */
+  lspOpen(id: string, text: string): void;
+  /** Sends the document's whole new text. */
+  lspChange(id: string, text: string): void;
+  lspClose(id: string): void;
+  /** Completions at a 0-based LSP position; empty if the server is unavailable. */
+  lspCompletion(id: string, position: Position): Promise<CompletionList>;
+  /** Adds an item's documentation; the item unchanged if the server is unavailable. */
+  lspResolveCompletion(item: CompletionItem): Promise<CompletionItem>;
 }

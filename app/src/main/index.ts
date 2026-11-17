@@ -3,7 +3,8 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPracticeService } from "../practice";
 import { createSettingsStore } from "../settings";
-import { CHANNELS, RUN_MODES, type RunMode, type Settings } from "../shared/api";
+import { CHANNELS, RUN_MODES, type CompletionItem, type Position, type RunMode, type Settings } from "../shared/api";
+import { createPyrightHost } from "./lsp/server";
 
 const settings = createSettingsStore({
   file: join(app.getPath("userData"), "settings.json"),
@@ -15,6 +16,14 @@ const serviceFor = ({ bankDir, pythonPath }: Settings) =>
   createPracticeService({ bankDir, pythonOverride: pythonPath || undefined });
 /** Rebuilt whenever the settings change, so Python is detected again for the new path. */
 let service = serviceFor(settings.get());
+
+const pyright = createPyrightHost({
+  workspaceDir: join(app.getPath("userData"), "pyright"),
+  pythonVersion: async () => {
+    const found = await service.detectPython();
+    return found.ok ? found.python.version : undefined;
+  },
+});
 
 /** Set by electron-vite in development: the renderer's dev server. */
 const devServerUrl = process.env["ELECTRON_RENDERER_URL"];
@@ -58,6 +67,35 @@ function registerIpc(): void {
     service = serviceFor(saved);
     return saved;
   });
+  // Language server traffic: a bad message is dropped rather than answered.
+  const lspMessage = <A extends unknown[]>(channel: string, accept: (...args: unknown[]) => A, apply: (...args: A) => void) =>
+    ipcMain.on(channel, (_e, ...args: unknown[]) => {
+      try {
+        apply(...accept(...args));
+      } catch {
+        // ignored: only the renderer's own bug could send it
+      }
+    });
+  lspMessage(CHANNELS.lspOpen, (id, text) => [requireString(id), requireString(text)] as const, pyright.open);
+  lspMessage(CHANNELS.lspChange, (id, text) => [requireString(id), requireString(text)] as const, pyright.change);
+  lspMessage(CHANNELS.lspClose, (id) => [requireString(id)] as const, pyright.close);
+  ipcMain.handle(CHANNELS.lspCompletion, (_e, id, position) =>
+    pyright.completion(requireString(id), requirePosition(position)),
+  );
+  ipcMain.handle(CHANNELS.lspResolveCompletion, (_e, item) => pyright.resolveCompletion(requireCompletionItem(item)));
+}
+
+function requirePosition(value: unknown): Position {
+  const { line, character } = (value ?? {}) as Partial<Record<keyof Position, unknown>>;
+  if (!Number.isInteger(line) || !Number.isInteger(character)) throw new TypeError("expected a position");
+  return { line: line as number, character: character as number };
+}
+
+function requireCompletionItem(value: unknown): CompletionItem {
+  if (typeof value !== "object" || value === null || typeof (value as CompletionItem).label !== "string") {
+    throw new TypeError("expected a completion item");
+  }
+  return value as CompletionItem;
 }
 
 function requireSettings(value: unknown): Settings {
@@ -108,6 +146,8 @@ void app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+app.on("will-quit", () => pyright.dispose());
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

@@ -29,6 +29,12 @@ const api: HackrankApi = {
   detectPython: () => ipcRenderer.invoke(CHANNELS.detectPython),
   getSettings: () => ipcRenderer.invoke(CHANNELS.getSettings),
   updateSettings: (settings) => ipcRenderer.invoke(CHANNELS.updateSettings, settings),
+  // One-way messages, delivered in order with the requests that follow them.
+  lspOpen: (id, text) => ipcRenderer.send(CHANNELS.lspOpen, id, text),
+  lspChange: (id, text) => ipcRenderer.send(CHANNELS.lspChange, id, text),
+  lspClose: (id) => ipcRenderer.send(CHANNELS.lspClose, id),
+  lspCompletion: (id, position) => ipcRenderer.invoke(CHANNELS.lspCompletion, id, position),
+  lspResolveCompletion: (item) => ipcRenderer.invoke(CHANNELS.lspResolveCompletion, item),
 };
 
 contextBridge.exposeInMainWorld("hackrank", api);
