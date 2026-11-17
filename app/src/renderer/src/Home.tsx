@@ -85,14 +85,18 @@ function BankMessage({ bankError, empty }: { bankError: string | undefined; empt
     return (
       <div className="malformed">
         <h2>Cannot read the question bank</h2>
-        <p>{bankError}. Choose another folder in Settings.</p>
+        <p>
+          {bankError}. Choose another folder in Settings, or fix this one; the bank is read again when you return
+          to Home.
+        </p>
       </div>
     );
   }
   if (empty) {
     return (
       <p className="placeholder">
-        No questions in this bank. Add a q&lt;N&gt;_&lt;slug&gt; folder; it appears the next time Home is shown.
+        No questions in this bank. Add a q&lt;N&gt;_&lt;slug&gt; folder; it appears when you return to Home, or
+        choose another folder in Settings.
       </p>
     );
   }
@@ -114,7 +118,7 @@ function Details(props: {
     return (
       <div className="malformed">
         <h2>{summary.folder} is malformed</h2>
-        <p>Fix these problems in the question folder; the fix appears the next time Home is shown:</p>
+        <p>Fix these problems in the question folder; the fix appears when you return to Home:</p>
         <ul>
           {summary.errors.map((e, i) => (
             <li key={i}>

@@ -65,6 +65,14 @@ export function App() {
     setBankScanned(true);
   }, []);
 
+  /** Forgets the listed bank and drops any scan in flight, so another bank's ids never show. */
+  const clearBank = () => {
+    bankSeq.current++;
+    setQuestions([]);
+    setBankError(undefined);
+    setBankScanned(false);
+  };
+
   /** Numbers Python detections, so a slow earlier one cannot overwrite a later one's result. */
   const pythonSeq = useRef(0);
 
@@ -82,6 +90,16 @@ export function App() {
     void api.getSettings().then(setSettings);
     void loadEnvironment();
   }, [loadEnvironment]);
+
+  // Coming back to the window counts as returning to Home: a folder fixed or added in another
+  // app shows up then, even when an empty or broken bank leaves nothing to start.
+  const onHome = screen.kind === "home";
+  useEffect(() => {
+    if (!onHome) return;
+    const rescan = () => void listBank();
+    window.addEventListener("focus", rescan);
+    return () => window.removeEventListener("focus", rescan);
+  }, [onHome, listBank]);
 
   /** Opens test mode for `summary` with its saved solution, starting a new stopwatch from zero. */
   const startTesting = async (summary: OkSummary) => {
@@ -152,6 +170,8 @@ export function App() {
     if (saved.bankDir !== settings?.bankDir) {
       // Question ids now name another bank's questions.
       setSelectedId(undefined);
+      // Now, not when the new scan lands.
+      clearBank();
       setCustomInputs({});
       revealed.current.clear();
     }
