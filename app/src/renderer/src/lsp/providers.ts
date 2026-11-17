@@ -1,12 +1,17 @@
 // Monaco's Python language features from pyright, through the preload API.
 import * as monaco from "monaco-editor";
 import type { CompletionItem } from "../../../shared/api";
-import { toLspPosition, toMonacoCompletion, toMonacoDocumentation } from "./convert";
+import { toLspPosition, toMonacoCompletion, toMonacoDocumentation, toMonacoMarker } from "./convert";
 
 const api = window.hackrank;
 
 /** The question each attached editor's model belongs to. */
 const documents = new WeakMap<monaco.editor.ITextModel, string>();
+/** The model of each attached question, for routing diagnostics to it. */
+const models = new Map<string, monaco.editor.ITextModel>();
+/** Owner of pyright's markers, so clearing them leaves other owners' alone. */
+const MARKER_OWNER = "pyright";
+
 /** The server's item behind each suggestion, needed to resolve it. */
 const serverItems = new WeakMap<monaco.languages.CompletionItem, CompletionItem>();
 
@@ -18,13 +23,41 @@ export function attachPyright(editor: monaco.editor.IStandaloneCodeEditor, id: s
   const model = editor.getModel();
   if (!model) return;
   documents.set(model, id);
+  models.set(id, model);
   api.lspOpen(id, model.getValue());
   const changes = model.onDidChangeContent(() => api.lspChange(id, model.getValue()));
   editor.onDidDispose(() => {
     changes.dispose();
     documents.delete(model);
+    // A newer editor for the same question may have taken the entry already.
+    if (models.get(id) === model) models.delete(id);
+    monaco.editor.setModelMarkers(model, MARKER_OWNER, []);
     api.lspClose(id);
   });
+}
+
+/**
+ * Shows pyright's diagnostics as markers on the attached editors; dispose the result to stop.
+ * Diagnostics for a question with no editor (one just switched away from) are dropped.
+ */
+export function showPyrightDiagnostics(): monaco.IDisposable {
+  const stop = api.onLspDiagnostics((id, diagnostics) => {
+    const model = models.get(id);
+    if (!model || model.isDisposed()) return;
+    monaco.editor.setModelMarkers(
+      model,
+      MARKER_OWNER,
+      diagnostics.map((diagnostic) => {
+        const { severityName, tagNames, ...marker } = toMonacoMarker(diagnostic);
+        return {
+          ...marker,
+          severity: monaco.MarkerSeverity[severityName],
+          tags: tagNames.map((name) => monaco.MarkerTag[name]),
+        };
+      }),
+    );
+  });
+  return { dispose: stop };
 }
 
 /** Registers pyright completion for Python; dispose the result to remove it. */

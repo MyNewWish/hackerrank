@@ -1,9 +1,11 @@
 import { expect, test } from "bun:test";
 import {
   completionKindName,
+  markerSeverityName,
   toLspPosition,
   toLspRange,
   toMonacoCompletion,
+  toMonacoMarker,
   toMonacoPosition,
   toMonacoRange,
 } from "../src/renderer/src/lsp/convert";
@@ -108,4 +110,40 @@ test("an auto-import keeps its import edit and shows the module it comes from", 
 
 test("an item without label details keeps a plain label", () => {
   expect(toMonacoCompletion({ label: "x" }, wordRange).label).toBe("x");
+});
+
+test("diagnostic severities map to marker severities, a missing one to Error", () => {
+  expect(markerSeverityName(1)).toBe("Error");
+  expect(markerSeverityName(2)).toBe("Warning");
+  expect(markerSeverityName(3)).toBe("Info");
+  expect(markerSeverityName(4)).toBe("Hint");
+  expect(markerSeverityName(undefined)).toBe("Error");
+});
+
+test("a diagnostic becomes a marker over the same range, keeping its message, rule and tags", () => {
+  const marker = toMonacoMarker({
+    range: { start: { line: 0, character: 6 }, end: { line: 0, character: 20 } },
+    severity: 1,
+    message: '"undefined_name" is not defined',
+    source: "Pyright",
+    code: "reportUndefinedVariable",
+    tags: [1],
+  });
+  expect(marker).toEqual({
+    startLineNumber: 1,
+    startColumn: 7,
+    endLineNumber: 1,
+    endColumn: 21,
+    severityName: "Error",
+    message: '"undefined_name" is not defined',
+    source: "Pyright",
+    code: "reportUndefinedVariable",
+    tagNames: ["Unnecessary"],
+  });
+});
+
+test("unknown diagnostic tags are dropped", () => {
+  const range = { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } };
+  expect(toMonacoMarker({ range, message: "m", tags: [2, 7 as 1] }).tagNames).toEqual(["Deprecated"]);
+  expect(toMonacoMarker({ range, message: "m" }).tagNames).toEqual([]);
 });

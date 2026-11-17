@@ -3,14 +3,24 @@
 import { utilityProcess } from "electron";
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { NO_COMPLETIONS, startPyright, type ForkServer, type PyrightSession } from "../../lsp/pyright";
+import {
+  NO_COMPLETIONS,
+  startPyright,
+  type DiagnosticsListener,
+  type ForkServer,
+  type PyrightSession,
+} from "../../lsp/pyright";
+import { createListeners } from "../../lsp/listeners";
 
 const fork: ForkServer = (entry, args, env) => {
   const child = utilityProcess.fork(entry, args, { env, stdio: "ignore", serviceName: "pyright" });
   return { kill: () => void child.kill(), onExit: (listener) => void child.once("exit", listener) };
 };
 
-/** A pyright session that starts itself on the first `open`; see `PyrightSession` for each call. */
+/**
+ * A pyright session that starts itself on the first `open`; see `PyrightSession` for each call.
+ * Diagnostics listeners stay attached across server restarts.
+ */
 export type PyrightHost = Omit<PyrightSession, "onExit">;
 
 /**
@@ -24,6 +34,7 @@ export function createPyrightHost(options: {
   let session: Promise<PyrightSession | undefined> | undefined;
   /** Set by `dispose`: a server still starting is stopped as soon as it is up, and none starts after. */
   let disposed = false;
+  const diagnosticsListeners = createListeners<Parameters<DiagnosticsListener>>();
 
   const start = async (): Promise<PyrightSession | undefined> => {
     try {
@@ -38,6 +49,7 @@ export function createPyrightHost(options: {
         started.dispose();
         return undefined;
       }
+      started.onDiagnostics(diagnosticsListeners.emit);
       // A later open starts a fresh server.
       started.onExit(() => (session = undefined));
       return started;
@@ -65,6 +77,7 @@ export function createPyrightHost(options: {
       if (!s) return item;
       return s.resolveCompletion(item).catch(() => item);
     },
+    onDiagnostics: diagnosticsListeners.add,
     dispose() {
       disposed = true;
       ifStarted((s) => s.dispose());

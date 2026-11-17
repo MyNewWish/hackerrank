@@ -15,9 +15,12 @@ import type {
   CompletionList,
   CompletionParams,
   ConfigurationParams,
+  Diagnostic,
   InitializeParams,
   Position,
+  PublishDiagnosticsParams,
 } from "vscode-languageserver-protocol";
+import { createListeners } from "./listeners";
 
 /** A started server process. */
 export interface ServerProcess {
@@ -41,6 +44,8 @@ export interface PyrightOptions {
   fork: ForkServer;
 }
 
+export type DiagnosticsListener = (id: string, diagnostics: Diagnostic[]) => void;
+
 export interface PyrightSession {
   /** Opens question `id`'s document with `text`; reopening an open one replaces it. */
   open(id: string, text: string): void;
@@ -51,6 +56,12 @@ export interface PyrightSession {
   completion(id: string, position: Position): Promise<CompletionList>;
   /** Fills in an item's documentation. */
   resolveCompletion(item: CompletionItem): Promise<CompletionItem>;
+  /**
+   * Calls `listener` with an open document's full set of diagnostics each time the server
+   * publishes them; never for a closed document or an outdated version. Returns a function that
+   * removes the listener.
+   */
+  onDiagnostics(listener: DiagnosticsListener): () => void;
   /** Called once if the server process exits, whether or not `dispose` caused it. */
   onExit(listener: () => void): void;
   dispose(): void;
@@ -100,6 +111,7 @@ export async function startPyright(options: PyrightOptions): Promise<PyrightSess
       workspace: { configuration: true, workspaceFolders: true },
       textDocument: {
         synchronization: { dynamicRegistration: false },
+        publishDiagnostics: { versionSupport: true, tagSupport: { valueSet: [1, 2] } },
         completion: {
           completionItem: {
             snippetSupport: false,
@@ -119,6 +131,18 @@ export async function startPyright(options: PyrightOptions): Promise<PyrightSess
   const uriOf = (id: string) => pathToFileURL(join(workspaceDir, encodeURIComponent(id), "solution.py")).href;
   /** Each open document's version, which every change must increase. */
   const versions = new Map<string, number>();
+  /**
+   * Shared by all documents and never reset, so a document closed and opened again cannot take
+   * the outdated diagnostics of its earlier life for current ones.
+   */
+  let versionCounter = 0;
+  const diagnosticsListeners = createListeners<Parameters<DiagnosticsListener>>();
+  connection.onNotification("textDocument/publishDiagnostics", ({ uri, version, diagnostics }: PublishDiagnosticsParams) => {
+    const id = idOf(uri);
+    if (id === undefined || !versions.has(id)) return;
+    if (version !== undefined && version !== versions.get(id)) return;
+    diagnosticsListeners.emit(id, diagnostics);
+  });
   let alive = true;
   void exited.then(() => {
     alive = false;
@@ -136,15 +160,16 @@ export async function startPyright(options: PyrightOptions): Promise<PyrightSess
   return {
     open(id, text) {
       close(id);
-      versions.set(id, 1);
-      notify("textDocument/didOpen", { textDocument: { uri: uriOf(id), languageId: "python", version: 1, text } });
+      const version = ++versionCounter;
+      versions.set(id, version);
+      notify("textDocument/didOpen", { textDocument: { uri: uriOf(id), languageId: "python", version, text } });
     },
     change(id, text) {
-      const version = versions.get(id);
-      if (version === undefined) return;
-      versions.set(id, version + 1);
+      if (!versions.has(id)) return;
+      const version = ++versionCounter;
+      versions.set(id, version);
       notify("textDocument/didChange", {
-        textDocument: { uri: uriOf(id), version: version + 1 },
+        textDocument: { uri: uriOf(id), version },
         contentChanges: [{ text }],
       });
     },
@@ -163,6 +188,7 @@ export async function startPyright(options: PyrightOptions): Promise<PyrightSess
       if (!alive) return item;
       return connection.sendRequest<CompletionItem>("completionItem/resolve", item);
     },
+    onDiagnostics: diagnosticsListeners.add,
     onExit(listener) {
       void exited.then(listener);
     },
@@ -173,6 +199,21 @@ export async function startPyright(options: PyrightOptions): Promise<PyrightSess
       server.kill();
     },
   };
+}
+
+/**
+ * The question id in a document URI from the server. Its spelling of the workspace part may
+ * differ from ours (on Windows `file:///c%3A/...` for `file:///C:/...`), so only the id's own
+ * segment is read.
+ */
+function idOf(uri: string): string | undefined {
+  const [file, folder] = uri.split("/").reverse();
+  if (file !== "solution.py" || folder === undefined) return undefined;
+  try {
+    return decodeURIComponent(folder);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Requests the server makes of its client. */

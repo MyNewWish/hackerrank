@@ -25,6 +25,11 @@ const pyright = createPyrightHost({
   },
 });
 
+// Pushed to every window; a renderer ignores documents it has no editor for.
+pyright.onDiagnostics((id, diagnostics) => {
+  for (const win of BrowserWindow.getAllWindows()) win.webContents.send(CHANNELS.lspDiagnostics, id, diagnostics);
+});
+
 /** Set by electron-vite in development: the renderer's dev server. */
 const devServerUrl = process.env["ELECTRON_RENDERER_URL"];
 

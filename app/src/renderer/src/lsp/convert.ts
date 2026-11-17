@@ -1,7 +1,7 @@
 // Pure LSP → Monaco conversions. Only types come from Monaco, so this runs under `bun test`;
 // enum values are named here and looked up in `providers.ts`.
-import type { IMarkdownString, IPosition, IRange, languages } from "monaco-editor";
-import type { CompletionItem, MarkupContent, Position, Range } from "vscode-languageserver-protocol";
+import type { editor, IMarkdownString, IPosition, IRange, languages, MarkerSeverity, MarkerTag } from "monaco-editor";
+import type { CompletionItem, Diagnostic, MarkupContent, Position, Range } from "vscode-languageserver-protocol";
 
 export type CompletionKindName = keyof typeof languages.CompletionItemKind;
 
@@ -70,5 +70,38 @@ export function toMonacoCompletion(item: CompletionItem, wordRange: IRange): Mon
     documentation: toMonacoDocumentation(item.documentation),
     sortText: item.sortText,
     filterText: item.filterText,
+  };
+}
+
+export type MarkerSeverityName = keyof typeof MarkerSeverity;
+export type MarkerTagName = keyof typeof MarkerTag;
+
+/** LSP `DiagnosticSeverity` values (1-based); Monaco's numbering differs, so names bridge them. */
+const LSP_SEVERITIES: MarkerSeverityName[] = ["Error", "Warning", "Info", "Hint"];
+/** LSP `DiagnosticTag` values (1-based); Monaco uses the same names. */
+const LSP_TAGS: MarkerTagName[] = ["Unnecessary", "Deprecated"];
+
+/** A diagnostic without a severity is an error, as the protocol leaves it to the client. */
+export function markerSeverityName(severity: number | undefined): MarkerSeverityName {
+  return (severity !== undefined && LSP_SEVERITIES[severity - 1]) || "Error";
+}
+
+/** A Monaco marker, with its severity and tags still names for the caller to look up. */
+export interface MonacoMarker extends Omit<editor.IMarkerData, "severity" | "tags" | "code"> {
+  severityName: MarkerSeverityName;
+  tagNames: MarkerTagName[];
+  /** The rule that produced it, e.g. `reportUndefinedVariable`. */
+  code?: string;
+}
+
+export function toMonacoMarker(diagnostic: Diagnostic): MonacoMarker {
+  return {
+    ...toMonacoRange(diagnostic.range),
+    severityName: markerSeverityName(diagnostic.severity),
+    // Markers show plain text only; LSP 3.18 also allows markup.
+    message: typeof diagnostic.message === "string" ? diagnostic.message : diagnostic.message.value,
+    source: diagnostic.source,
+    code: diagnostic.code === undefined ? undefined : String(diagnostic.code),
+    tagNames: (diagnostic.tags ?? []).flatMap((tag) => LSP_TAGS[tag - 1] ?? []),
   };
 }

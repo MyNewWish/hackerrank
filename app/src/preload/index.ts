@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import { CHANNELS, type GradedTest, type HackrankApi } from "../shared/api";
+import { CHANNELS, type Diagnostic, type GradedTest, type HackrankApi } from "../shared/api";
 
 let nextRunId = 0;
 
@@ -35,6 +35,11 @@ const api: HackrankApi = {
   lspClose: (id) => ipcRenderer.send(CHANNELS.lspClose, id),
   lspCompletion: (id, position) => ipcRenderer.invoke(CHANNELS.lspCompletion, id, position),
   lspResolveCompletion: (item) => ipcRenderer.invoke(CHANNELS.lspResolveCompletion, item),
+  onLspDiagnostics: (listener) => {
+    const relay = (_e: IpcRendererEvent, id: string, diagnostics: Diagnostic[]) => listener(id, diagnostics);
+    ipcRenderer.on(CHANNELS.lspDiagnostics, relay);
+    return () => void ipcRenderer.removeListener(CHANNELS.lspDiagnostics, relay);
+  },
 };
 
 contextBridge.exposeInMainWorld("hackrank", api);
