@@ -6,6 +6,7 @@ import {
   discoverPython,
   loadQuestion,
   runQuestion,
+  solutionPath,
   type PythonInfo,
   type Question,
   type TestResult,
@@ -29,7 +30,7 @@ beforeAll(async () => {
 /** A fresh workspace folder holding `fixture` as the question's solution file. */
 function workspaceWith(fixture: string): string {
   const workspace = mkdtempSync(join(tmpdir(), "judge-ws-"));
-  copyFileSync(join(SOLUTIONS, fixture), join(workspace, `${question.id}_solution.py`));
+  copyFileSync(join(SOLUTIONS, fixture), solutionPath(workspace, question.id));
   return workspace;
 }
 
@@ -167,9 +168,33 @@ describe("runQuestion", () => {
     });
   });
 
+  test("the summary lists every part, with 0/0 for a part that has no selected tests", async () => {
+    const files = sumQuestionFiles("q1_sum/");
+    delete files["q1_sum/tests/part2/sample/01.in"];
+    delete files["q1_sum/tests/part2/sample/01.out"];
+    const hiddenOnly = loadQuestion(join(makeTree(files), "q1_sum"));
+    if (!hiddenOnly.ok) throw new Error(JSON.stringify(hiddenOnly.errors));
+
+    const report = await runQuestion({
+      python,
+      question: hiddenOnly.question,
+      workspaceDir: workspaceWith("correct.py"),
+      mode: "run",
+    });
+
+    expect(report.summary).toEqual({
+      total: 1,
+      passed: 1,
+      parts: [
+        { partId: "part1", total: 1, passed: 1 },
+        { partId: "part2", total: 0, passed: 0 },
+      ],
+    });
+  });
+
   test("runs the solution with the workspace as its working directory", async () => {
     const workspace = workspaceWith("correct.py");
-    writeFileSync(join(workspace, `${question.id}_solution.py`), "import os\nprint(os.getcwd())\n");
+    writeFileSync(solutionPath(workspace, question.id), "import os\nprint(os.getcwd())\n");
 
     const report = await runQuestion({ python, question, workspaceDir: workspace, mode: "run" });
 

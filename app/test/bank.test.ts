@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { scanBank } from "../src/judge";
 import { makeTree, sumQuestionFiles } from "./helpers";
 
@@ -36,5 +38,26 @@ describe("scanBank", () => {
     const broken = entries[1]!;
     if (broken.ok) throw new Error("expected q2 to fail");
     expect(broken.errors.length).toBeGreaterThan(0);
+  });
+
+  test("a folder whose files cannot be read is an errored entry, not a failed scan", () => {
+    const bank = makeTree({
+      ...sumQuestionFiles("q1_good/"),
+      ...sumQuestionFiles("q2_unreadable/"),
+      // problem.md is a directory, so reading it as a file fails at the OS level
+      "q2_unreadable/problem.md": "",
+    });
+    rmSync(join(bank, "q2_unreadable", "problem.md"));
+    mkdirSync(join(bank, "q2_unreadable", "problem.md"));
+
+    const entries = scanBank(bank);
+
+    expect(entries.map((e) => [e.id, e.ok])).toEqual([
+      ["q1", true],
+      ["q2", false],
+    ]);
+    const broken = entries[1]!;
+    if (broken.ok) throw new Error("expected q2 to fail");
+    expect(broken.errors).toEqual([{ path: "problem.md", message: expect.any(String) }]);
   });
 });

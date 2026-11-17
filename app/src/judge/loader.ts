@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type {
@@ -16,6 +16,9 @@ const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
 const COMPARE_MODES: CompareMode[] = ["lines"];
 const TEST_KINDS: TestKind[] = ["sample", "hidden"];
 
+/** A part as declared in question.yaml, before its tests are attached. */
+type PartDeclaration = Pick<Part, "id" | "title">;
+
 interface Meta {
   title: string;
   difficulty: Difficulty;
@@ -23,46 +26,68 @@ interface Meta {
   targetMinutes: number;
   timeLimitMs: number;
   compare: CompareMode;
-  parts: { id: string; title: string }[];
+  parts: PartDeclaration[];
+}
+
+/** The question id encoded in a `q<N>_<slug>` folder name: everything before the first underscore. */
+export function questionIdFromFolder(folder: string): string {
+  return folder.split("_")[0]!;
 }
 
 /** Loads a `q<N>_<slug>` question folder. Authoring problems are returned as errors, never thrown. */
 export function loadQuestion(dir: string): LoadResult {
   const errors: ValidationError[] = [];
-  const meta = readMeta(dir, errors);
-  const statement = readStatement(dir, errors);
-  const parts = meta ? readParts(dir, meta.parts, errors) : [];
+  try {
+    const meta = readMeta(dir, errors);
+    const statement = readText(dir, "problem.md", errors);
+    const parts = meta ? readParts(dir, meta.parts, errors) : [];
 
-  if (!meta || statement === undefined || errors.length > 0) {
-    return { ok: false, errors };
+    if (!meta || statement === undefined || errors.length > 0) {
+      return { ok: false, errors };
+    }
+    return {
+      ok: true,
+      question: {
+        id: questionIdFromFolder(basename(dir)),
+        dir,
+        title: meta.title,
+        difficulty: meta.difficulty,
+        tags: meta.tags,
+        targetMinutes: meta.targetMinutes,
+        timeLimitMs: meta.timeLimitMs,
+        compare: meta.compare,
+        statement,
+        parts,
+      },
+    };
+  } catch (e) {
+    // Last line of defence: an unexpected file-system failure still becomes a validation error.
+    return { ok: false, errors: [...errors, { path: ".", message: (e as Error).message }] };
   }
-  return {
-    ok: true,
-    question: {
-      id: basename(dir).split("_")[0]!,
-      dir,
-      title: meta.title,
-      difficulty: meta.difficulty,
-      tags: meta.tags,
-      targetMinutes: meta.targetMinutes,
-      timeLimitMs: meta.timeLimitMs,
-      compare: meta.compare,
-      statement,
-      parts,
-    },
-  };
+}
+
+/** Reads `rel` inside `dir`, recording a missing or unreadable file as an error. */
+function readText(dir: string, rel: string, errors: ValidationError[]): string | undefined {
+  const file = join(dir, rel);
+  if (!existsSync(file)) {
+    errors.push({ path: rel, message: `${rel} is missing` });
+    return undefined;
+  }
+  try {
+    return readFileSync(file, "utf8");
+  } catch (e) {
+    errors.push({ path: rel, message: `cannot read: ${(e as Error).message}` });
+    return undefined;
+  }
 }
 
 function readMeta(dir: string, errors: ValidationError[]): Meta | undefined {
   const path = "question.yaml";
-  const file = join(dir, path);
-  if (!existsSync(file)) {
-    errors.push({ path, message: "question.yaml is missing" });
-    return undefined;
-  }
+  const text = readText(dir, path, errors);
+  if (text === undefined) return undefined;
   let raw: unknown;
   try {
-    raw = parseYaml(readFileSync(file, "utf8"));
+    raw = parseYaml(text);
   } catch (e) {
     errors.push({ path, message: `invalid YAML: ${(e as Error).message}` });
     return undefined;
@@ -90,17 +115,17 @@ function readMeta(dir: string, errors: ValidationError[]): Meta | undefined {
     fail(`\`compare\` must be one of ${COMPARE_MODES.join(", ")}`);
   }
 
-  const parts: { id: string; title: string }[] = [];
+  const parts: PartDeclaration[] = [];
   if (!Array.isArray(raw.parts) || raw.parts.length === 0) {
     fail("`parts` must be a non-empty list");
   } else {
-    raw.parts.forEach((p, i) => {
-      if (!isRecord(p) || typeof p.id !== "string" || typeof p.title !== "string") {
+    raw.parts.forEach((entry, i) => {
+      if (!isRecord(entry) || typeof entry.id !== "string" || typeof entry.title !== "string") {
         fail(`parts[${i}] must have string \`id\` and \`title\``);
-      } else if (parts.some((q) => q.id === p.id)) {
-        fail(`parts[${i}]: duplicate part id "${p.id}"`);
+      } else if (parts.some((declared) => declared.id === entry.id)) {
+        fail(`parts[${i}]: duplicate part id "${entry.id}"`);
       } else {
-        parts.push({ id: p.id, title: p.title });
+        parts.push({ id: entry.id, title: entry.title });
       }
     });
   }
@@ -117,24 +142,10 @@ function readMeta(dir: string, errors: ValidationError[]): Meta | undefined {
   };
 }
 
-function readStatement(dir: string, errors: ValidationError[]): string | undefined {
-  const file = join(dir, "problem.md");
-  if (!existsSync(file)) {
-    errors.push({ path: "problem.md", message: "problem.md is missing" });
-    return undefined;
-  }
-  return readFileSync(file, "utf8");
-}
-
-function readParts(
-  dir: string,
-  declared: { id: string; title: string }[],
-  errors: ValidationError[],
-): Part[] {
-  const testsDir = join(dir, "tests");
-  const folders = listDirs(testsDir);
+function readParts(dir: string, declared: PartDeclaration[], errors: ValidationError[]): Part[] {
+  const folders = listDirs(join(dir, "tests"));
   for (const folder of folders) {
-    if (!declared.some((p) => p.id === folder)) {
+    if (!declared.some((part) => part.id === folder)) {
       errors.push({ path: `tests/${folder}`, message: `part folder "${folder}" is not declared in parts` });
     }
   }
@@ -143,11 +154,12 @@ function readParts(
       errors.push({ path: `tests/${id}`, message: `declared part "${id}" has no tests folder` });
       return { id, title, tests: [] };
     }
-    return { id, title, tests: readPartTests(join(testsDir, id), id, errors) };
+    return { id, title, tests: readPartTests(dir, id, errors) };
   });
 }
 
-function readPartTests(partDir: string, partId: string, errors: ValidationError[]): TestCase[] {
+function readPartTests(dir: string, partId: string, errors: ValidationError[]): TestCase[] {
+  const partDir = join(dir, "tests", partId);
   for (const folder of listDirs(partDir)) {
     if (!TEST_KINDS.includes(folder as TestKind)) {
       errors.push({ path: `tests/${partId}/${folder}`, message: "only sample/ and hidden/ folders are allowed" });
@@ -157,31 +169,27 @@ function readPartTests(partDir: string, partId: string, errors: ValidationError[
   for (const kind of TEST_KINDS) {
     const kindDir = join(partDir, kind);
     if (!existsSync(kindDir)) continue;
-    const files = readdirSync(kindDir);
-    const names = new Set<string>();
-    for (const f of files) {
-      const m = /^(.+)\.(in|out)$/.exec(f);
-      if (m) names.add(m[1]!);
+    const testNames = new Set<string>();
+    for (const file of readdirSync(kindDir)) {
+      const match = /^(.+)\.(in|out)$/.exec(file);
+      if (match) testNames.add(match[1]!);
     }
-    for (const name of [...names].sort()) {
-      const rel = `tests/${partId}/${kind}/${name}`;
-      const inFile = join(kindDir, `${name}.in`);
-      const outFile = join(kindDir, `${name}.out`);
-      if (!existsSync(inFile)) {
-        errors.push({ path: `${rel}.out`, message: "has no matching .in file" });
+    for (const name of [...testNames].sort()) {
+      const id = `${partId}/${kind}/${name}`;
+      const inRel = `tests/${id}.in`;
+      const outRel = `tests/${id}.out`;
+      if (!existsSync(join(dir, inRel))) {
+        errors.push({ path: outRel, message: "has no matching .in file" });
         continue;
       }
-      if (!existsSync(outFile)) {
-        errors.push({ path: `${rel}.in`, message: "has no matching .out file" });
+      if (!existsSync(join(dir, outRel))) {
+        errors.push({ path: inRel, message: "has no matching .out file" });
         continue;
       }
-      tests.push({
-        id: `${partId}/${kind}/${name}`,
-        partId,
-        kind,
-        input: readFileSync(inFile, "utf8"),
-        expected: readFileSync(outFile, "utf8"),
-      });
+      const input = readText(dir, inRel, errors);
+      const expected = readText(dir, outRel, errors);
+      if (input === undefined || expected === undefined) continue;
+      tests.push({ id, partId, kind, input, expected });
     }
   }
   return tests;
@@ -189,8 +197,9 @@ function readPartTests(partDir: string, partId: string, errors: ValidationError[
 
 function listDirs(dir: string): string[] {
   if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((name) => statSync(join(dir, name)).isDirectory())
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
     .sort();
 }
 

@@ -2,20 +2,25 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { outputsMatch } from "./compare";
 import type { PythonInfo } from "./python";
-import type { Question, TestCase, TestKind } from "./types";
+import type { CompareMode, Question, TestCase, TestKind } from "./types";
 
 /** `run` = sample tests of every part; `submit` = every test. */
 export type RunMode = "run" | "submit";
 export type TestStatus = "pass" | "wrong" | "error";
 
-export interface TestResult {
+/** What a finished process produced. Output has CRLF normalised to LF. */
+export interface ProcessOutput {
+  stdout: string;
+  stderr: string;
+  /** null when the process could not start or was killed by a signal. */
+  exitCode: number | null;
+}
+
+export interface TestResult extends ProcessOutput {
   testId: string;
   partId: string;
   kind: TestKind;
   status: TestStatus;
-  stdout: string;
-  stderr: string;
-  exitCode: number | null;
   durationMs: number;
 }
 
@@ -55,7 +60,7 @@ export async function runQuestion(options: RunOptions): Promise<RunReport> {
 
   const results: TestResult[] = [];
   for (const test of tests) {
-    const result = await runTest(python, solution, workspaceDir, test, question);
+    const result = await runTest(python, solution, workspaceDir, test, question.compare);
     results.push(result);
     onResult?.(result);
   }
@@ -67,31 +72,17 @@ async function runTest(
   solution: string,
   cwd: string,
   test: TestCase,
-  question: Question,
+  compare: CompareMode,
 ): Promise<TestResult> {
   const started = performance.now();
-  const { stdout, stderr, exitCode } = await execute(python.path, ["-I", "-u", solution], cwd, test.input);
+  const output = await execute(python.path, ["-I", "-u", solution], cwd, test.input);
   const durationMs = Math.round(performance.now() - started);
   const status: TestStatus =
-    exitCode !== 0 ? "error" : outputsMatch(test.expected, stdout, question.compare) ? "pass" : "wrong";
-  return {
-    testId: test.id,
-    partId: test.partId,
-    kind: test.kind,
-    status,
-    stdout,
-    stderr,
-    exitCode,
-    durationMs,
-  };
+    output.exitCode !== 0 ? "error" : outputsMatch(test.expected, output.stdout, compare) ? "pass" : "wrong";
+  return { testId: test.id, partId: test.partId, kind: test.kind, status, ...output, durationMs };
 }
 
-function execute(
-  command: string,
-  args: string[],
-  cwd: string,
-  input: string,
-): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
+function execute(command: string, args: string[], cwd: string, input: string): Promise<ProcessOutput> {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd,
@@ -120,12 +111,15 @@ function decode(chunks: Buffer[]): string {
 }
 
 function summarize(question: Question, results: TestResult[]): Summary {
-  const parts = question.parts
-    .map((p) => {
-      const mine = results.filter((r) => r.partId === p.id);
-      return { partId: p.id, total: mine.length, passed: mine.filter((r) => r.status === "pass").length };
-    })
-    .filter((p) => p.total > 0);
+  // Every part is listed, even with no selected tests (0/0), so callers can show all parts consistently.
+  const parts = question.parts.map((part) => {
+    const partResults = results.filter((r) => r.partId === part.id);
+    return {
+      partId: part.id,
+      total: partResults.length,
+      passed: partResults.filter((r) => r.status === "pass").length,
+    };
+  });
   return {
     total: results.length,
     passed: results.filter((r) => r.status === "pass").length,
