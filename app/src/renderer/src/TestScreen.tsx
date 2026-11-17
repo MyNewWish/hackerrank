@@ -40,12 +40,33 @@ function documentId({ question, view }: OpenQuestion): string {
 
 export type ResultsTab = "tests" | "custom";
 
+/** A question loaded with its saved solution, ready to show, or why it could not be loaded. */
+export type Opening = { ok: true; question: QuestionView; initialCode: string } | { ok: false; error: string };
+
+/**
+ * Loads question `id` for the screen. The app awaits this before replacing the screen, so the
+ * question being left stays on screen until the next one is ready.
+ */
+export async function loadOpening(id: string): Promise<Opening> {
+  try {
+    const [question, initialCode] = await Promise.all([api.loadQuestion(id), api.readCode(id, "solution")]);
+    return { ok: true, question, initialCode };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
 /** What the app can ask of the screen on screen. */
 export interface TestScreenHandle {
   /** Saves any pending code now, e.g. before another question or bank replaces this screen. */
   flush(): Promise<void>;
   /** Whether question `id` is open (loaded, not malformed or failed). */
   isOpen(id: string): boolean;
+  /**
+   * Opens the already-open question again in place (e.g. after Settings are saved): back on my
+   * solution with results cleared, keeping the editor and its pyright document.
+   */
+  reopen(opening: Extract<Opening, { ok: true }>): void;
 }
 
 /**
@@ -85,12 +106,14 @@ export function useRunLock(): RunLock {
 /**
  * The editor screen for one question: statement, editor, results, custom input, the My solution |
  * Reference switch, Reset/Recover and the stopwatch. Mount it afresh (with a new `key`) to open
- * another question; it loads `summary` on mount. State kept while the app is open (stopwatch
+ * another question, passing it already loaded. State kept while the app is open (stopwatch
  * starts, custom stdin, revealed references, the results tab and the autosave error) is the app's.
  */
 export function TestScreen(props: {
   /** The question to open; malformed (or none) shows why nothing is open instead. */
   summary: QuestionSummary | undefined;
+  /** `summary` loaded, read on mount only; undefined when it is malformed or none. */
+  opening: Opening | undefined;
   /** Why the bank could not be listed. */
   bankError: string | undefined;
   /** The bank has been listed and has no questions. */
@@ -118,11 +141,14 @@ export function TestScreen(props: {
   const { summary, python, lock, revealed, onSaved } = props;
   const { running } = lock;
   const dark = useDarkMode();
-  const [open, setOpen] = useState<OpenQuestion>();
-  const [loadError, setLoadError] = useState<string>();
+  // Every question opens on my solution, never on its answer.
+  const [open, setOpen] = useState<OpenQuestion | undefined>(() =>
+    props.opening?.ok ? { question: props.opening.question, view: "solution", initialCode: props.opening.initialCode } : undefined,
+  );
+  const loadError = props.opening?.ok === false ? props.opening.error : undefined;
   const [run, setRun] = useState<RunState>({ kind: "idle" });
   const [custom, setCustom] = useState<CustomState>({ kind: "idle" });
-  const code = useRef("");
+  const code = useRef(props.opening?.ok ? props.opening.initialCode : "");
   /** False once the screen is gone; its late replies are dropped. */
   const live = useRef(true);
   useEffect(() => {
@@ -155,32 +181,26 @@ export function TestScreen(props: {
 
   useImperativeHandle(
     props.ref,
-    () => ({ flush: autosave.flush, isOpen: (id) => open?.question.id === id }),
+    () => ({
+      flush: autosave.flush,
+      isOpen: (id) => open?.question.id === id,
+      reopen: ({ question, initialCode }) => {
+        const wasSolution = currentView.current === "solution";
+        currentView.current = "solution";
+        setRun({ kind: "idle" });
+        setCustom({ kind: "idle" });
+        referenceSeq.current++; // drop answers about the reference being left
+        setReferenceModified(false);
+        // Already on my solution, the editor stays and its text (maybe typed since the read) is the code.
+        if (!wasSolution) code.current = initialCode;
+        setOpen({ question, view: "solution", initialCode });
+      },
+    }),
     [autosave, open],
   );
 
   // Code still pending when the screen goes is saved; the app normally flushes it first.
   useEffect(() => () => void autosave.flush(), [autosave]);
-
-  // Opens the question, or for a malformed one shows its validation errors instead. Every
-  // question opens on my solution, never on its answer.
-  const id = summary?.ok ? summary.id : undefined;
-  useEffect(() => {
-    if (id === undefined) return;
-    void (async () => {
-      try {
-        const [question, initialCode] = await Promise.all([api.loadQuestion(id), api.readCode(id, "solution")]);
-        if (!live.current) return;
-        code.current = initialCode;
-        setOpen({ question, view: "solution", initialCode });
-        setLoadError(undefined);
-      } catch (e) {
-        if (!live.current) return;
-        setOpen(undefined);
-        setLoadError(errorMessage(e));
-      }
-    })();
-  }, [id]);
 
   /**
    * Runs `job` for the open question unless a run is already in progress: Run, Submit and a

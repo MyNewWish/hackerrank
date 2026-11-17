@@ -3,7 +3,7 @@ import type { DiscoverResult, IdeMode, LspStatus, QuestionSummary, Settings } fr
 import { errorMessage } from "./errors";
 import { applyIdeMode, setPyrightAvailable } from "./monaco";
 import { SettingsDialog } from "./SettingsDialog";
-import { TestScreen, useRunLock, type ResultsTab, type TestScreenHandle } from "./TestScreen";
+import { loadOpening, TestScreen, useRunLock, type Opening, type ResultsTab, type TestScreenHandle } from "./TestScreen";
 
 const IDE_MODE_OPTIONS: { mode: IdeMode; label: string; title: string }[] = [
   { mode: "hackerrank", label: "HackerRank-like", title: "Only basic keyword and word completion, as on the real screen" },
@@ -12,9 +12,13 @@ const IDE_MODE_OPTIONS: { mode: IdeMode; label: string; title: string }[] = [
 
 const api = window.hackrank;
 
-/** The question the screen opens, and which opening this is: each one mounts a fresh screen. */
+/**
+ * The question the screen shows, loaded, and which screen this is: a new `seq` mounts a fresh
+ * screen. Undefined `opening` when the question is malformed or there is none.
+ */
 interface Opened {
   summary: QuestionSummary | undefined;
+  opening: Opening | undefined;
   seq: number;
 }
 
@@ -33,7 +37,7 @@ export function App() {
   const [startedAt, setStartedAt] = useState<Record<string, number>>({});
   /** The question picked in the dropdown, which may be a malformed one (then nothing is open). */
   const [selectedId, setSelectedId] = useState<string>();
-  const [opened, setOpened] = useState<Opened>({ summary: undefined, seq: 0 });
+  const [opened, setOpened] = useState<Opened>({ summary: undefined, opening: undefined, seq: 0 });
   const screen = useRef<TestScreenHandle>(null);
   /** Why the bank could not be listed. */
   const [bankError, setBankError] = useState<string>();
@@ -45,15 +49,23 @@ export function App() {
 
   /**
    * Opens a question, or for a malformed one shows its validation errors instead: saves the
-   * screen's pending code, then replaces the screen with a fresh one for `summary`.
+   * screen's pending code, loads `summary`, then replaces the screen with a fresh one for it. The
+   * question already open is reopened in place, keeping its editor, unless `fresh` (another bank).
    */
-  const openQuestion = useCallback(async (summary: QuestionSummary | undefined) => {
+  const openQuestion = useCallback(async (summary: QuestionSummary | undefined, fresh = false) => {
     const id = summary?.id;
     current.current = id;
     setSelectedId(id);
     await screen.current?.flush();
     if (current.current !== id) return;
-    setOpened((o) => ({ summary, seq: o.seq + 1 }));
+    const opening = summary?.ok ? await loadOpening(summary.id) : undefined;
+    if (current.current !== id) return;
+    if (!fresh && opening?.ok && summary && screen.current?.isOpen(summary.id)) {
+      screen.current.reopen(opening);
+      setOpened((o) => ({ ...o, summary, opening }));
+      return;
+    }
+    setOpened((o) => ({ summary, opening, seq: o.seq + 1 }));
   }, []);
 
   /** Re-scans the bank; on failure (e.g. the bank folder is gone) shows why and lists nothing. */
@@ -75,16 +87,22 @@ export function App() {
   /** Numbers Python detections, so a slow earlier one cannot overwrite a later one's result. */
   const pythonSeq = useRef(0);
 
-  /** Scans the bank and Python afresh, then opens the selected question if still there, else the first. */
-  const loadEnvironment = useCallback(async () => {
-    const seq = ++pythonSeq.current;
-    setPython(undefined);
-    void api.detectPython().then((found) => {
-      if (pythonSeq.current === seq) setPython(found);
-    });
-    const list = await listBank();
-    void openQuestion(stillListedOrFirst(list, current.current));
-  }, [listBank, openQuestion]);
+  /**
+   * Scans the bank and Python afresh, then opens the selected question if still there, else the
+   * first; `newBank` when the bank folder changed, so a same-named question opens afresh.
+   */
+  const loadEnvironment = useCallback(
+    async (newBank = false) => {
+      const seq = ++pythonSeq.current;
+      setPython(undefined);
+      void api.detectPython().then((found) => {
+        if (pythonSeq.current === seq) setPython(found);
+      });
+      const list = await listBank();
+      void openQuestion(stillListedOrFirst(list, current.current), newBank);
+    },
+    [listBank, openQuestion],
+  );
 
   useEffect(() => {
     void api.getSettings().then(setSettings);
@@ -140,7 +158,8 @@ export function App() {
     } catch (e) {
       throw new Error(errorMessage(e));
     }
-    if (saved.bankDir !== settings?.bankDir) {
+    const newBank = saved.bankDir !== settings?.bankDir;
+    if (newBank) {
       // Question ids now name another bank's questions.
       current.current = undefined;
       setStartedAt({});
@@ -149,7 +168,7 @@ export function App() {
     }
     setSettings(saved);
     setEditingSettings(false);
-    await loadEnvironment();
+    await loadEnvironment(newBank);
   };
 
   const openId = opened.summary?.id;
@@ -160,6 +179,7 @@ export function App() {
         key={opened.seq}
         ref={screen}
         summary={opened.summary}
+        opening={opened.opening}
         bankError={bankError}
         bankEmpty={bankScanned && questions.length === 0}
         python={python}
