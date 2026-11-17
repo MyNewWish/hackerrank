@@ -1,0 +1,9 @@
+title: Shipping cost
+difficulty: medium
+tags: [parsing, graphs, dijkstra]
+targetMinutes: 50
+parts:
+  - { id: part1, title: Direct cost }
+  - { id: part2, title: At most one intermediate country }
+  - { id: part3, title: Any number of hops }
+  - { id: part4, title: Constraints }

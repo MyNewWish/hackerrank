@@ -1,11 +1,16 @@
-"""Reference solution - shipping cost (all 4 parts)."""
+"""Reference solution - shipping cost (all 4 parts).
+
+Reads the lanes line, a query count and the queries from stdin; prints one line per query.
+"""
 import heapq
+import sys
 from collections import defaultdict
 
 
 def parse_routes(data):
     """'US:UK:UPS:5,UK:FR:DHL:3' -> adjacency {src: [(dst, carrier, cost)]}.
     Malformed entries are skipped."""
+
     graph = defaultdict(list)
     for raw in data.split(","):
         parts = [p.strip() for p in raw.split(":")]
@@ -65,7 +70,36 @@ def one_hop_route(data, src, dst):
     return cheapest_route(data, src, dst, max_legs=2)
 
 
+def _fmt_line(result):
+    if result is None:
+        return "NONE"
+    return f"{result['route']} | {result['method'] or '-'} | {result['cost']}"
+
+
+def answer(data, query):
+    cmd, src, dst, *opts = query.split()
+    if cmd == "DIRECT":
+        cost = direct_cost(data, src, dst)
+        return "NONE" if cost is None else str(cost)
+    if cmd == "ONE_HOP":
+        return _fmt_line(one_hop_route(data, src, dst))
+    max_legs = carriers = None
+    for opt in opts:
+        key, _, value = opt.partition("=")
+        if key == "legs":
+            max_legs = int(value)
+        elif key == "carriers":
+            carriers = set(value.split(","))
+    return _fmt_line(cheapest_route(data, src, dst, max_legs, carriers))
+
+
+def main():
+    lines = sys.stdin.read().splitlines()
+    data = lines[0] if lines else ""
+    count = int(lines[1]) if len(lines) > 1 else 0
+    for query in lines[2:2 + count]:
+        print(answer(data, query))
+
+
 if __name__ == "__main__":
-    s = "US:UK:UPS:5,US:UK:DHL:4,UK:FR:DHL:3,US:CA:FedEx:2,CA:FR:UPS:6"
-    print(direct_cost(s, "US", "UK"))
-    print(one_hop_route(s, "US", "FR"))
+    main()

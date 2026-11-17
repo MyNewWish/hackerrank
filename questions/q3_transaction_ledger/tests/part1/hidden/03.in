@@ -1,0 +1,5 @@
+1
+BALANCES
+timestamp,merchant,txn_id,type,amount,ref
+1,a,x,CHARGE,1.00,
+2,b,r,REFUND,1.00,x

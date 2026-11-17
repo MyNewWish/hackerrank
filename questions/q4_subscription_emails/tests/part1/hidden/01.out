@@ -1,0 +1,6 @@
+0: [Welcome] Subscription for A (X)
+1: [Welcome] Subscription for B (Y)
+1: [Upcoming expiry] Subscription for B (Y)
+15: [Upcoming expiry] Subscription for A (X)
+16: [Expired] Subscription for B (Y)
+30: [Expired] Subscription for A (X)

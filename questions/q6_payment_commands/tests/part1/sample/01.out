@@ -1,0 +1,5 @@
+p1 CREATED
+p1 AUTHORIZED
+p1 CAPTURED
+ERROR p1 invalid_transition
+ERROR p2 not_found

@@ -1,4 +1,8 @@
-"""Reference solution - request router (all 4 parts)."""
+"""Reference solution - request router (all 4 parts).
+
+Reads the counted rules and the counted request/health lines from stdin; prints one line per request.
+"""
+import sys
 from dataclasses import dataclass, field
 
 
@@ -45,6 +49,7 @@ def parse_rule(text, order):
 def score(rule, method, segs):
     """Specificity tuple (bigger = better) or None if no match.
     per segment: literal 3, :param 2; trailing * -> 0; exact-length end marker 1."""
+
     if rule.method not in ("*", method):
         return None
     ranks = []
@@ -113,3 +118,17 @@ def route(rules, lines):
         if r is not None:
             out.append(r)
     return out
+
+
+def main():
+    lines = sys.stdin.read().splitlines()
+    rule_count = int(lines[0])
+    rules = lines[1:1 + rule_count]
+    line_count = int(lines[1 + rule_count])
+    events = lines[2 + rule_count:2 + rule_count + line_count]
+    for result in route(rules, events):
+        print(result)
+
+
+if __name__ == "__main__":
+    main()

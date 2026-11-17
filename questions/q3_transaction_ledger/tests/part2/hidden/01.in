@@ -1,0 +1,16 @@
+1
+FLAGGED 1 1.0
+timestamp,merchant,txn_id,type,amount,ref
+1,acme,c1,CHARGE,1.00,
+2,acme,c2,CHARGE,1.00,
+3,acme,c3,CHARGE,1.00,
+4,acme,c4,CHARGE,1.00,
+5,bolt,c5,CHARGE,1.00,
+6,bolt,c6,CHARGE,1.00,
+7,zed,c7,CHARGE,1.00,
+10,acme,d1,DISPUTE,,c1
+11,acme,d2,DISPUTE,,c2
+12,acme,d6,DISPUTE,,c1
+13,bolt,d3,DISPUTE,,c5
+14,zed,d4,DISPUTE,,c7
+15,acme,d5,DISPUTE,,c6

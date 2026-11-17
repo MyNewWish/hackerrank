@@ -1,4 +1,8 @@
-"""Reference solution - merchant ledger & dispute monitoring (all 4 parts)."""
+"""Reference solution - merchant ledger & dispute monitoring (all 4 parts).
+
+Reads a query count, the queries, then the CSV (header first) from stdin; prints one line per query.
+"""
+import sys
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -27,6 +31,7 @@ def to_cents(s):
 def parse(lines):
     """Parse CSV lines (first line is a header). Skip malformed rows.
     Returns events sorted by timestamp (stable), duplicates by txn_id dropped."""
+
     events = []
     for i, line in enumerate(lines[1:], start=1):
         f = [x.strip() for x in line.split(",")]
@@ -98,7 +103,7 @@ def _fmt_cents(c):
 # Part 1 (+ part 3 rules)
 def balances(lines):
     led = Ledger(lines)
-    return [f"{m}: {_fmt_cents(c)}" for m, c in sorted(led.balance.items())]
+    return [f"{m}={_fmt_cents(c)}" for m, c in sorted(led.balance.items())]
 
 
 # Part 2
@@ -132,3 +137,28 @@ def burst_merchants(lines, window, k):
                 out.append(m)
                 break
     return sorted(out)
+
+
+def _line(items):
+    return " ".join(items) if items else "NONE"
+
+
+def answer(query, lines):
+    cmd, *args = query.split()
+    if cmd == "BALANCES":
+        return _line(balances(lines))
+    if cmd == "FLAGGED":
+        return _line(flagged_merchants(lines, int(args[0]), float(args[1])))
+    return _line(burst_merchants(lines, int(args[0]), int(args[1])))
+
+
+def main():
+    lines = sys.stdin.read().splitlines()
+    count = int(lines[0]) if lines else 0
+    queries, csv_lines = lines[1:1 + count], lines[1 + count:]
+    for query in queries:
+        print(answer(query, csv_lines))
+
+
+if __name__ == "__main__":
+    main()

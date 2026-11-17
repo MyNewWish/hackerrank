@@ -1,0 +1,11 @@
+3
+GET /api/users -> users
+POST /api/users -> users-write
+garbage rule
+6
+GET /api/users
+POST /api/users
+DELETE /api/users
+get /api/users/
+GET /api/user
+GET /api/users?limit=10

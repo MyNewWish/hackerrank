@@ -1,0 +1,9 @@
+title: Payment command processor
+difficulty: hard
+tags: [state-machine, parsing, idempotency, money]
+targetMinutes: 60
+parts:
+  - { id: part1, title: Lifecycle }
+  - { id: part2, title: Partial capture and refunds }
+  - { id: part3, title: Idempotency keys }
+  - { id: part4, title: Summary }

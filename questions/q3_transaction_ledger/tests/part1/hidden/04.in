@@ -1,0 +1,5 @@
+1
+BALANCES
+timestamp,merchant,txn_id,type,amount,ref
+bad,row
+1,a,x,REFUND,1.00,

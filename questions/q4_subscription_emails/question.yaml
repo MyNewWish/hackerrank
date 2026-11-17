@@ -1,0 +1,8 @@
+title: Subscription email scheduler
+difficulty: medium
+tags: [simulation, sorting, billing]
+targetMinutes: 50
+parts:
+  - { id: part1, title: Lifecycle emails }
+  - { id: part2, title: Plan changes }
+  - { id: part3, title: Extensions }

@@ -1,0 +1,11 @@
+3
+BALANCES
+FLAGGED 1 0.5
+FLAGGED 1 0.6
+timestamp,merchant,txn_id,type,amount,ref
+200,acme,d1,DISPUTE,,c1
+100,acme,c1,CHARGE,10.00,
+100,acme,c1,CHARGE,10.00,
+150,acme,c2,CHARGE,4.00,
+300,acme,v1,REVERSAL,,d1
+250,acme,d2,DISPUTE,,c2

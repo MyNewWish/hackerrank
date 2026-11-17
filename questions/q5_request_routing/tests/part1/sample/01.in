@@ -1,0 +1,6 @@
+2
+GET /api/users -> users
+POST /api/users -> users-write
+2
+GET /api/users?limit=5
+DELETE /api/users

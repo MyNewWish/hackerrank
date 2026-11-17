@@ -1,4 +1,8 @@
-"""Reference solution - payment command processor (all 4 parts)."""
+"""Reference solution - payment command processor (all 4 parts).
+
+Reads a command count and the commands from stdin; prints each command's response.
+"""
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -119,18 +123,27 @@ class Processor:
         return f"{pid} VOIDED"
 
 
-def process(commands):
-    proc = Processor()
-    return [proc.execute(c) for c in commands]
+def summary(processor):
+    """Part 4: per-currency totals of the successfully created payments, sorted by currency."""
 
-
-def summary(commands):
-    proc = Processor()
-    for c in commands:
-        proc.execute(c)
     totals = defaultdict(lambda: [0, 0])
-    for p in proc.payments.values():
+    for p in processor.payments.values():
         t = totals[p.currency]
         t[0] += p.captured
         t[1] += p.refunded
     return [f"{cur} captured={c} refunded={r} net={c - r}" for cur, (c, r) in sorted(totals.items())]
+
+
+def main():
+    lines = sys.stdin.read().splitlines()
+    count = int(lines[0]) if lines else 0
+    proc = Processor()
+    for line in lines[1:1 + count]:
+        if line.split() == ["SUMMARY"]:
+            print("\n".join(summary(proc)) or "NONE")
+        else:
+            print(proc.execute(line))
+
+
+if __name__ == "__main__":
+    main()

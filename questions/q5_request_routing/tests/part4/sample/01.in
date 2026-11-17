@@ -1,0 +1,17 @@
+2
+GET /pay -> a:2,b:1
+GET /other -> b
+13
+GET /pay
+DOWN a
+GET /pay
+GET /pay
+UP a
+GET /pay
+DOWN a
+DOWN b
+GET /pay
+GET /other
+UP b
+GET /pay
+GET /other

@@ -1,0 +1,17 @@
+2
+BURST 100 2
+BURST 101 2
+timestamp,merchant,txn_id,type,amount,ref
+1,acme,a1,CHARGE,1.00,
+2,acme,a2,CHARGE,1.00,
+3,acme,a3,CHARGE,1.00,
+4,bolt,b1,CHARGE,1.00,
+5,bolt,b2,CHARGE,1.00,
+6,bolt,b3,CHARGE,1.00,
+100,acme,da1,DISPUTE,,a1
+150,acme,da2,DISPUTE,,a2
+400,acme,da3,DISPUTE,,a3
+100,bolt,db1,DISPUTE,,b1
+200,bolt,db2,DISPUTE,,b2
+120,bolt,db3,DISPUTE,,b3
+130,bolt,vb3,REVERSAL,,db3

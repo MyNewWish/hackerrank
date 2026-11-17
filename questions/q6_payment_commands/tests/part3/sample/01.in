@@ -1,0 +1,5 @@
+4
+CREATE a 1000 USD key=k1
+CREATE a 1000 USD key=k1
+AUTHORIZE a key=k2
+CAPTURE a key=k2

@@ -1,0 +1,18 @@
+1
+GET /pay -> a,b,c
+15
+DOWN b
+GET /pay
+GET /pay
+UP b
+GET /pay
+GET /pay
+DOWN x
+UP zz
+DOWN a
+DOWN b
+DOWN c
+GET /pay
+UP c
+GET /pay
+GET /nope

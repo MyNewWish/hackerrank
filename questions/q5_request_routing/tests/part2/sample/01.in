@@ -1,0 +1,11 @@
+7
+GET /api/users -> users
+POST /api/users -> users-write
+GET /api/users/:id -> user-detail
+GET /api/* -> api
+* /health -> health
+GET /* -> web
+GET /api/users -> dup
+2
+GET /api/users/42
+GET /api/users/42/cards

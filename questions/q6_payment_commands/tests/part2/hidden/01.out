@@ -1,0 +1,17 @@
+a CREATED
+a AUTHORIZED
+a CAPTURED
+a PARTIALLY_REFUNDED
+ERROR a invalid_amount
+a REFUNDED
+ERROR a invalid_transition
+ERROR a invalid_transition
+b CREATED
+b AUTHORIZED
+ERROR b invalid_amount
+ERROR b invalid_amount
+b CAPTURED
+ERROR b invalid_amount
+c CREATED
+ERROR c invalid_transition
+ERROR zz not_found

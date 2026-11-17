@@ -1,0 +1,13 @@
+a CREATED
+a CREATED
+a AUTHORIZED
+a AUTHORIZED
+ERROR a invalid_transition
+a CAPTURED
+ERROR a idempotency_conflict
+a PARTIALLY_REFUNDED
+a PARTIALLY_REFUNDED
+a REFUNDED
+ERROR q not_found
+q CREATED
+ERROR q not_found

@@ -1,0 +1,14 @@
+p1 CREATED
+p1 AUTHORIZED
+p1 CAPTURED
+ERROR p1 duplicate
+ERROR p2 not_found
+p2 CREATED
+ERROR p2 invalid_transition
+p2 VOIDED
+ERROR p2 invalid_transition
+ERROR p3 invalid_amount
+ERROR p4 invalid_amount
+ERROR - malformed
+ERROR - malformed
+ERROR - malformed

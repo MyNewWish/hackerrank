@@ -1,0 +1,14 @@
+1
+BALANCES
+timestamp,merchant,txn_id,type,amount,ref
+100,acme,c1,CHARGE,10.00,
+105,acme,c2,CHARGE,5.50,
+110,bolt,c3,CHARGE,20.00,
+120,acme,r1,REFUND,3.25,c1
+130,bolt,r2,REFUND,1.00,c999
+bad,row
+140,bolt,c4,CHARGE,abc,
+141,bolt,c6,CHARGE,1.005,
+142,bolt,c7,CHARGE,-4.00,
+143,bolt,c8,PAYOUT,4.00,
+150,zed,c5,CHARGE,0.10,

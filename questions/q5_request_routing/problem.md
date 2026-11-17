@@ -1,26 +1,60 @@
-# P5 — Request router  (target: 60 min for all parts)
+# Request router
 
 Reported as "Request Routing System" in 2026 Stripe HackerRank OAs (several reports).
 
-```python
-def route(rules: list[str], lines: list[str]) -> list[str]
+A rule looks like `GET /api/users -> users-svc`. Each input line is either a request
+`GET /api/users` or (Part 4) a health event. Answer every **request** with the
+backend name, or `404` if no rule matches. Skip malformed rules.
+
+## Input Format
+
+1. An integer `R`, the number of rules.
+2. `R` rule lines.
+3. An integer `N`, the number of request/event lines.
+4. `N` lines, each a request `METHOD PATH` or (Part 4) a health event.
+
+```
+2
+GET /api/users -> users
+POST /api/users -> users-write
+2
+GET /api/users?limit=5
+DELETE /api/users
 ```
 
-A rule looks like `"GET /api/users -> users-svc"`. Each line is either a request
-`"GET /api/users"` or (Part 4) a health event. Return one output per **request**:
-the backend name, or `"404"` if no rule matches. Skip malformed rules.
+## Output Format
 
-## Part 1 — exact routes
+One line per request, in order: the chosen backend, `404`, or (Part 4) `503`.
+Health events print nothing.
+
+```
+users
+404
+```
+
+## Part 1 — Exact routes
+
 - Match method and path exactly. Method is case-insensitive.
 - Normalize paths: ignore the query string (`?limit=10`) and empty segments
   (`/api/users/` == `/api/users`).
 
+Input:
 ```
-rules: ["GET /api/users -> users", "POST /api/users -> users-write"]
-"GET /api/users?limit=5" -> users       "DELETE /api/users" -> 404
+2
+GET /api/users -> users
+POST /api/users -> users-write
+2
+GET /api/users?limit=5
+DELETE /api/users
+```
+Output:
+```
+users
+404
 ```
 
-## Part 2 — patterns and precedence
+## Part 2 — Patterns and precedence
+
 - `:name` matches any single segment: `GET /api/users/:id`.
 - A trailing `*` matches zero or more remaining segments: `GET /api/*`.
 - Method `*` matches any method: `* /health -> health`.
@@ -29,19 +63,91 @@ rules: ["GET /api/users -> users", "POST /api/users -> users-write"]
   beats a `*` at that position. Next, a specific method beats `*`. Last, the rule listed
   earlier wins.
 
+Input:
 ```
-"GET /api/users/42"       -> user-detail   (via /api/users/:id)
-"GET /api/users/42/cards" -> api           (via /api/*)
+7
+GET /api/users -> users
+POST /api/users -> users-write
+GET /api/users/:id -> user-detail
+GET /api/* -> api
+* /health -> health
+GET /* -> web
+GET /api/users -> dup
+2
+GET /api/users/42
+GET /api/users/42/cards
+```
+Output:
+```
+user-detail
+api
 ```
 
-## Part 3 — weighted backends
-`"GET /pay -> a:3,b:1"`: the weight defaults to 1. Each rule cycles through its expanded
+The first request matches `/api/users/:id`; the second only matches `/api/*` and `/*`.
+
+## Part 3 — Weighted backends
+
+`GET /pay -> a:3,b:1`: the weight defaults to 1. Each rule cycles through its expanded
 list `[a, a, a, b]` in order, one entry per request. Each rule has its own cursor.
 
-## Part 4 — health
-Lines can also be `"DOWN a"` or `"UP a"`. They produce no output. Health is global
+Input:
+```
+2
+GET /pay -> a:3,b:1
+GET /x -> c
+6
+GET /pay
+GET /x
+GET /pay
+GET /pay
+GET /pay
+GET /pay
+```
+Output:
+```
+a
+c
+a
+a
+b
+a
+```
+
+## Part 4 — Health
+
+Lines can also be `DOWN a` or `UP a`. They produce no output. Health is global
 by backend name. When picking a backend, start at the rule's cursor and skip DOWN
-entries. Return `"503"` if all of the rule's backends are down. In that case the
+entries. Print `503` if all of the rule's backends are down. In that case the
 cursor doesn't move.
 
-Run: `python test.py` (your solution) or `python test.py ref` (reference).
+Input:
+```
+2
+GET /pay -> a:2,b:1
+GET /other -> b
+13
+GET /pay
+DOWN a
+GET /pay
+GET /pay
+UP a
+GET /pay
+DOWN a
+DOWN b
+GET /pay
+GET /other
+UP b
+GET /pay
+GET /other
+```
+Output:
+```
+a
+b
+b
+a
+503
+503
+b
+b
+```

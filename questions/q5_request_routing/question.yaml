@@ -1,0 +1,9 @@
+title: Request router
+difficulty: hard
+tags: [parsing, routing, round-robin, simulation]
+targetMinutes: 60
+parts:
+  - { id: part1, title: Exact routes }
+  - { id: part2, title: Patterns and precedence }
+  - { id: part3, title: Weighted backends }
+  - { id: part4, title: Health }

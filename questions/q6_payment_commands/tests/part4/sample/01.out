@@ -1,0 +1,16 @@
+a CREATED
+a AUTHORIZED
+a CAPTURED
+a PARTIALLY_REFUNDED
+a PARTIALLY_REFUNDED
+b CREATED
+b AUTHORIZED
+b CAPTURED
+c CREATED
+c AUTHORIZED
+c VOIDED
+d CREATED
+ERROR - malformed
+EUR captured=300 refunded=0 net=300
+JPY captured=0 refunded=0 net=0
+USD captured=600 refunded=100 net=500

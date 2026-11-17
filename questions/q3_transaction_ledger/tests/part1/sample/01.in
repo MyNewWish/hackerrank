@@ -1,0 +1,5 @@
+1
+BALANCES
+timestamp,merchant,txn_id,type,amount,ref
+100,acme,c1,CHARGE,10.00,
+120,acme,r1,REFUND,3.25,c1

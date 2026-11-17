@@ -1,0 +1,5 @@
+1
+BALANCES
+timestamp,merchant,txn_id,type,amount,ref
+50,x,d9,DISPUTE,,c9
+60,x,c9,CHARGE,1.00,

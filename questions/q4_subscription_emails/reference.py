@@ -1,4 +1,8 @@
-"""Reference solution - subscription email scheduler (all 3 parts)."""
+"""Reference solution - subscription email scheduler (all 3 parts).
+
+Reads the schedule, users and changes sections from stdin; prints one email per line.
+"""
+import sys
 from bisect import bisect_right
 
 RANK = {"start": 0, "change": 1, "reminder": 2, "end": 3}
@@ -6,6 +10,7 @@ RANK = {"start": 0, "change": 1, "reminder": 2, "end": 3}
 
 def _lifecycle(schedule, end, begin):
     """Reminder + expiry emails for a given end date: [(day, rank, label)]."""
+
     out = []
     for key, label in schedule.items():
         if key == "end":
@@ -49,7 +54,43 @@ def send_schedule(users, schedule, changes=None):
     return [f"{d}: [{label}] Subscription for {n} ({p})" for d, n, _, label, p in emails]
 
 
+def _section(lines, pos):
+    """The counted section starting at lines[pos]: (its lines, position after it)."""
+    count = int(lines[pos])
+    return lines[pos + 1:pos + 1 + count], pos + 1 + count
+
+
+def parse_input(text):
+    lines = text.splitlines()
+    sched_lines, pos = _section(lines, 0)
+    user_lines, pos = _section(lines, pos)
+    change_lines, _ = _section(lines, pos) if pos < len(lines) else ([], pos)
+
+    schedule = {}
+    for line in sched_lines:
+        key, label = line.split(" ", 1)
+        schedule[key if key in ("start", "end") else int(key)] = label
+    users = []
+    for line in user_lines:
+        name, plan, begin, duration = line.split()
+        users.append({"name": name, "plan": plan, "begin_date": int(begin), "duration": int(duration)})
+    changes = []
+    for line in change_lines:
+        name, day, kind, value = line.split()
+        change = {"name": name, "change_date": int(day)}
+        if kind == "PLAN":
+            change["new_plan"] = value
+        else:
+            change["extension"] = int(value)
+        changes.append(change)
+    return users, schedule, changes
+
+
+def main():
+    users, schedule, changes = parse_input(sys.stdin.read())
+    for email in send_schedule(users, schedule, changes):
+        print(email)
+
+
 if __name__ == "__main__":
-    users = [{"name": "A", "plan": "X", "begin_date": 0, "duration": 30}]
-    sched = {"start": "Welcome", -15: "Upcoming expiry", "end": "Expired"}
-    print("\n".join(send_schedule(users, sched)))
+    main()

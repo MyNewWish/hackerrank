@@ -1,0 +1,8 @@
+2
+BALANCES
+FLAGGED 1 1.0
+timestamp,merchant,txn_id,type,amount,ref
+1,y,c,CHARGE,2.00,
+2,y,d,DISPUTE,,c
+3,y,v,REVERSAL,,d
+4,y,d2,DISPUTE,,c

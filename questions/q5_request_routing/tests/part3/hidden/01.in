@@ -1,0 +1,13 @@
+2
+GET /pay -> a,b:2
+GET /q -> c:2,d
+9
+GET /pay
+GET /pay
+GET /q
+GET /pay
+GET /pay
+GET /q
+GET /pay
+GET /q
+GET /q
