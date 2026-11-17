@@ -24,12 +24,12 @@
 ## The kit
 | Problem | Real-world theme | Target |
 |---|---|---|
-| `p1_accept_language` | HTTP header negotiation | 45 min |
-| `p2_shipping_cost` | lanes string → graph, Dijkstra with constraints | 50 min |
-| `p3_transaction_ledger` | charges/refunds/disputes, out-of-order, idempotency | 60 min |
-| `p4_subscription_emails` | billing lifecycle simulation | 50 min |
-| `p5_request_routing` ★ | route matching, precedence, weighted round-robin, health | 60 min |
-| `p6_payment_commands` ★ | payment state machine, partial capture/refund, idempotency keys | 60 min |
+| `questions/q1_accept_language` | HTTP header negotiation | 45 min |
+| `questions/q2_shipping_cost` | lanes string → graph, Dijkstra with constraints | 50 min |
+| `questions/q3_transaction_ledger` | charges/refunds/disputes, out-of-order, idempotency | 60 min |
+| `questions/q4_subscription_emails` | billing lifecycle simulation | 50 min |
+| `questions/q5_request_routing` ★ | route matching, precedence, weighted round-robin, health | 60 min |
+| `questions/q6_payment_commands` ★ | payment state machine, partial capture/refund, idempotency keys | 60 min |
 | `p7_invoice_reconciliation` ★ | allocate payments to invoices, credits, aging, FX rounding | 60 min |
 | `p8_csv_validation` | header/row checks, cross-column refs, cycle detection | 50 min |
 
@@ -41,13 +41,15 @@
 | `p14_datacenter_routing` ★ | FastPrep "Request Routing System": REGISTER/SET_HEALTHY, Haversine, capacity-aware ROUTE, strict parsing | 60 min |
 
 ★ = reported most often in 2026, so prioritise these.
-p9–p13 (plus p4, "Subscription Notification Scheduler") come from
+p9–p13 (plus q4, "Subscription Notification Scheduler") come from
 [extrabrain's Stripe OA list](https://extrabrain.app/interview-questions/stripe-hackerrank-online-assessment-extrabrain/).
 That page leaves gaps and has wrong examples, so each problem.md states the rules the tests use.
 
-Each folder contains `problem.md`, `solution.py` (empty stub you fill in), `test.py`,
-and `reference.py`. Run `python test.py` to test your code or `python test.py ref`
-to test the reference. **Keep reference.py closed until you've made a timed attempt.**
+The `questions/qN_*` folders are stdin → stdout questions for the practice app in `app/`:
+each has `problem.md`, `question.yaml`, `reference.py`, and sample and hidden tests in
+`tests/partN/`. The remaining `pN_*` folders contain `problem.md`, `solution.py` (empty stub
+you fill in), `test.py`, and `reference.py`. Run `python test.py` to test your code or
+`python test.py ref` to test the reference. **Keep reference.py closed until you've made a timed attempt.**
 
 ## 7-day plan
 | Day | Do |
