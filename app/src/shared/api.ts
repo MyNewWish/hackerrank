@@ -26,6 +26,14 @@ export interface CustomRunResult extends Omit<ProgramResult, "status"> {
   status: Exclude<ProgramResult["status"], "cancelled">;
 }
 
+/** User settings, persisted by the main process. */
+export interface Settings {
+  /** The question bank folder; the workspace is its sibling `workspace/` folder. */
+  bankDir: string;
+  /** Python interpreter to use; empty = auto-detect. */
+  pythonPath: string;
+}
+
 export type QuestionSummary =
   | { id: string; ok: true; title: string; difficulty: Difficulty; targetMinutes: number }
   | { id: string; ok: false; folder: string; errors: ValidationError[] };
@@ -53,6 +61,8 @@ export const CHANNELS = {
   /** Main → renderer: one finished test of a run, as `(runId, GradedTest)`. */
   runResult: "run:result",
   detectPython: "python:detect",
+  getSettings: "settings:get",
+  updateSettings: "settings:update",
 } as const;
 
 /**
@@ -74,5 +84,13 @@ export interface HackrankApi {
   run(id: string, code: string, mode: RunMode, onResult: (result: GradedTest) => void): Promise<GradedReport>;
   /** Saves `code`, then runs it once on `stdin` with no grading. */
   runCustom(id: string, code: string, stdin: string): Promise<CustomRunResult>;
+  /** The interpreter runs use: the configured path, else the first Python 3 found. */
   detectPython(): Promise<DiscoverResult>;
+  /** The saved settings with blanks filled in by the defaults. */
+  getSettings(): Promise<Settings>;
+  /**
+   * Validates and saves `settings` (blank fields = defaults), then switches the bank and Python
+   * to them. Rejects, changing nothing, if the bank folder does not exist.
+   */
+  updateSettings(settings: Settings): Promise<Settings>;
 }

@@ -1,12 +1,20 @@
 import { app, BrowserWindow, ipcMain, session } from "electron";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPracticeService } from "../practice";
-import { CHANNELS, RUN_MODES, type RunMode } from "../shared/api";
+import { createSettingsStore } from "../settings";
+import { CHANNELS, RUN_MODES, type RunMode, type Settings } from "../shared/api";
 
-/** Running from the repo, the app folder's sibling `questions/` is the bank. */
-const bankDir = resolve(app.getAppPath(), "..", "questions");
-const service = createPracticeService({ bankDir });
+const settings = createSettingsStore({
+  file: join(app.getPath("userData"), "settings.json"),
+  /** Running from the repo, the app folder's sibling `questions/` is the default bank. */
+  defaultBankDir: resolve(app.getAppPath(), "..", "questions"),
+});
+
+const serviceFor = ({ bankDir, pythonPath }: Settings) =>
+  createPracticeService({ bankDir, pythonOverride: pythonPath || undefined });
+/** Rebuilt whenever the settings change, so Python is detected again for the new path. */
+let service = serviceFor(settings.get());
 
 /** Set by electron-vite in development: the renderer's dev server. */
 const devServerUrl = process.env["ELECTRON_RENDERER_URL"];
@@ -44,6 +52,18 @@ function registerIpc(): void {
     service.runCustom(requireString(id), requireString(code), requireString(stdin)),
   );
   ipcMain.handle(CHANNELS.detectPython, () => service.detectPython());
+  ipcMain.handle(CHANNELS.getSettings, () => settings.get());
+  ipcMain.handle(CHANNELS.updateSettings, (_e, next) => {
+    const saved = settings.update(requireSettings(next));
+    service = serviceFor(saved);
+    return saved;
+  });
+}
+
+function requireSettings(value: unknown): Settings {
+  const { bankDir, pythonPath } = (value ?? {}) as Partial<Record<keyof Settings, unknown>>;
+  if (typeof bankDir !== "string" || typeof pythonPath !== "string") throw new TypeError("expected settings");
+  return { bankDir, pythonPath };
 }
 
 /** The app is offline: only its own files (and the dev server in development) may load. */

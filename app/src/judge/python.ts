@@ -21,7 +21,10 @@ export async function discoverPython(override?: string): Promise<DiscoverResult>
     const python = await probe(override, []);
     return python
       ? { ok: true, python }
-      : { ok: false, error: `"${override}" is not a working Python 3 interpreter` };
+      : {
+          ok: false,
+          error: `"${override}" is not a working Python 3 interpreter. Fix the Python path in settings, or clear it to auto-detect.`,
+        };
   }
   const candidates: [string, string[]][] = [
     ["python3", []],

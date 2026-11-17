@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { loadQuestion, questionIdFromFolder } from "./loader";
 import type { LoadResult } from "./types";
@@ -9,6 +9,7 @@ export type BankEntry = { id: string; folder: string; dir: string } & LoadResult
 
 /** Lists `q<N>_<slug>` folders in `bankDir`, sorted by N, each loaded or carrying its errors. */
 export function scanBank(bankDir: string): BankEntry[] {
+  if (!existsSync(bankDir)) throw new Error(`Question bank folder "${bankDir}" not found`);
   return readdirSync(bankDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => ({ folder: entry.name, match: QUESTION_FOLDER.exec(entry.name) }))

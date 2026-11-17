@@ -27,6 +27,8 @@ const api: HackrankApi = {
   },
   runCustom: (id, code, stdin) => ipcRenderer.invoke(CHANNELS.runCustom, id, code, stdin),
   detectPython: () => ipcRenderer.invoke(CHANNELS.detectPython),
+  getSettings: () => ipcRenderer.invoke(CHANNELS.getSettings),
+  updateSettings: (settings) => ipcRenderer.invoke(CHANNELS.updateSettings, settings),
 };
 
 contextBridge.exposeInMainWorld("hackrank", api);

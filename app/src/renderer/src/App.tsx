@@ -2,9 +2,10 @@ import Editor from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import type { DiscoverResult, QuestionSummary, QuestionView, RunMode } from "../../shared/api";
+import type { DiscoverResult, QuestionSummary, QuestionView, RunMode, Settings } from "../../shared/api";
 import { CUSTOM_STDIN_ID, CustomRun, type CustomState } from "./CustomRun";
 import { Results, type RunState } from "./Results";
+import { SettingsDialog } from "./SettingsDialog";
 import { shortcutAction } from "./shortcuts";
 import { Statement } from "./Statement";
 import { Stopwatch } from "./Stopwatch";
@@ -42,15 +43,31 @@ export function App() {
   const editorRef = useRef<editor.IStandaloneCodeEditor>(undefined);
   /** When each question's stopwatch started (its first keystroke), kept while the app is open. */
   const [startedAt, setStartedAt] = useState<Record<string, number>>({});
+  /** The question picked in the dropdown, which may be a malformed one (then nothing is open). */
+  const [selectedId, setSelectedId] = useState<string>();
+  /** Why the bank could not be listed. */
+  const [bankError, setBankError] = useState<string>();
+  /** The bank has been listed at least once, so an empty list means an empty bank. */
+  const [bankScanned, setBankScanned] = useState(false);
+  const [settings, setSettings] = useState<Settings>();
+  const [editingSettings, setEditingSettings] = useState(false);
 
+  /** Opens a question, or for a malformed one shows its validation errors instead. */
   const openQuestion = useCallback(
-    async (id: string) => {
+    async (summary: QuestionSummary | undefined) => {
+      const id = summary?.id;
       current.current = id;
+      setSelectedId(id);
       await autosave.flush();
       setRun({ kind: "idle" });
       setCustom({ kind: "idle" });
+      if (!summary?.ok) {
+        setOpen(undefined);
+        setLoadError(undefined);
+        return;
+      }
       try {
-        const [question, initialCode] = await Promise.all([api.loadQuestion(id), api.readSolution(id)]);
+        const [question, initialCode] = await Promise.all([api.loadQuestion(summary.id), api.readSolution(summary.id)]);
         if (current.current !== id) return;
         code.current = initialCode;
         setOpen({ question, initialCode });
@@ -64,14 +81,70 @@ export function App() {
     [autosave],
   );
 
-  useEffect(() => {
-    void api.detectPython().then(setPython);
-    void api.listQuestions().then((list) => {
+  /** Re-scans the bank; on failure (e.g. the bank folder is gone) shows why and lists nothing. */
+  const listBank = useCallback(async (): Promise<QuestionSummary[]> => {
+    try {
+      const list = await api.listQuestions();
       setQuestions(list);
-      const first = list.find((q) => q.ok);
-      if (first) void openQuestion(first.id);
+      setBankError(undefined);
+      return list;
+    } catch (e) {
+      setQuestions([]);
+      setBankError(errorMessage(e));
+      return [];
+    } finally {
+      setBankScanned(true);
+    }
+  }, []);
+
+  /** Numbers Python detections, so a slow earlier one cannot overwrite a later one's result. */
+  const pythonSeq = useRef(0);
+
+  /** Scans the bank and Python afresh, then opens the selected question if still there, else the first. */
+  const loadEnvironment = useCallback(async () => {
+    const seq = ++pythonSeq.current;
+    setPython(undefined);
+    void api.detectPython().then((found) => {
+      if (pythonSeq.current === seq) setPython(found);
     });
-  }, [openQuestion]);
+    const list = await listBank();
+    void openQuestion(stillListedOrFirst(list, current.current));
+  }, [listBank, openQuestion]);
+
+  useEffect(() => {
+    void api.getSettings().then(setSettings);
+    void loadEnvironment();
+  }, [loadEnvironment]);
+
+  /**
+   * Picks up question folders added, fixed or broken since the last scan. The open question is
+   * left as it is (its code and results stay) unless its folder is now malformed or gone.
+   */
+  const refresh = async () => {
+    const list = await listBank();
+    const target = stillListedOrFirst(list, current.current);
+    if (target?.ok && open?.question.id === target.id) return;
+    void openQuestion(target);
+  };
+
+  const saveSettings = async (next: Settings) => {
+    await autosave.flush(); // pending code belongs to the current bank's workspace
+    let saved: Settings;
+    try {
+      saved = await api.updateSettings(next);
+    } catch (e) {
+      throw new Error(errorMessage(e));
+    }
+    if (saved.bankDir !== settings?.bankDir) {
+      // Question ids now name another bank's questions.
+      current.current = undefined;
+      setStartedAt({});
+      setCustomInputs({});
+    }
+    setSettings(saved);
+    setEditingSettings(false);
+    await loadEnvironment();
+  };
 
   /** A run is in progress, possibly for a question the user has since left; one run at a time. */
   const [running, setRunning] = useState(false);
@@ -85,7 +158,7 @@ export function App() {
    * custom run share one lock, so they never overlap. Each of them saves the code itself.
    */
   const withRunLock = async (job: (question: QuestionView) => Promise<void>) => {
-    if (!open || busy.current) return;
+    if (!open || !python?.ok || busy.current) return;
     busy.current = true;
     setRunning(true);
     autosave.cancel();
@@ -160,12 +233,15 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, []);
 
+  const selected = questions.find((q) => q.id === selectedId);
+  const malformed = selected && !selected.ok ? selected : undefined;
+
   return (
     <div className="app">
       <header className="top-bar">
         <select
-          value={open?.question.id ?? ""}
-          onChange={(e) => void openQuestion(e.target.value)}
+          value={selectedId ?? ""}
+          onChange={(e) => void openQuestion(questions.find((q) => q.id === e.target.value))}
           aria-label="Question"
         >
           {questions.map((q) =>
@@ -174,17 +250,32 @@ export function App() {
                 {q.id}. {q.title} — {q.difficulty} · {q.targetMinutes} min
               </option>
             ) : (
-              <option key={q.id} value={q.id} disabled>
-                {q.id}. ({q.folder} is malformed)
+              <option key={q.id} value={q.id}>
+                {q.id}. ⚠ {q.folder} is malformed
               </option>
             ),
           )}
         </select>
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => void refresh()}
+          title="Re-scan the question bank for added or changed questions"
+        >
+          Refresh
+        </button>
         {open && <Stopwatch startedAt={startedAt[open.question.id]} targetMinutes={open.question.targetMinutes} />}
         {saveError && <span className="save-error">Autosave failed: {saveError}</span>}
-        <span className="python-status">
-          {python === undefined ? "Finding Python…" : python.ok ? `Python ${python.python.version}` : python.error}
-        </span>
+        <span className="spacer" />
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => setEditingSettings(true)}
+          disabled={!settings || running}
+          title="Question bank folder and Python interpreter"
+        >
+          Settings
+        </button>
         <button
           type="button"
           className="secondary"
@@ -198,7 +289,7 @@ export function App() {
           type="button"
           className="secondary"
           onClick={() => void startRun("run")}
-          disabled={!open || running}
+          disabled={!open || running || !python?.ok}
           title={`Run the sample tests (${MOD}+')`}
         >
           Run
@@ -207,7 +298,7 @@ export function App() {
           type="button"
           className="primary"
           onClick={() => void startRun("submit")}
-          disabled={!open || running}
+          disabled={!open || running || !python?.ok}
           title={`Run all tests, including hidden ones (${MOD}+Enter)`}
         >
           Submit
@@ -218,7 +309,7 @@ export function App() {
           {open ? (
             <Statement key={open.question.id} markdown={open.question.statement} />
           ) : (
-            <p className="placeholder">{loadError ?? "Loading…"}</p>
+            <NothingOpen bankError={bankError} malformed={malformed} loadError={loadError} empty={bankScanned && questions.length === 0} />
           )}
         </Panel>
         <Separator className="separator vertical" />
@@ -269,11 +360,11 @@ export function App() {
                       onInputChange={(input) => setCustomInputs((all) => ({ ...all, [open.question.id]: input }))}
                       state={custom}
                       onRun={() => void startCustomRun()}
-                      disabled={running}
+                      disabled={running || !python?.ok}
                       shortcut={`${MOD}+Enter`}
                     />
                   ) : (
-                    <p className="placeholder">{loadError ?? "Loading…"}</p>
+                    <p className="placeholder">Open a question to run code on custom input.</p>
                   )}
                 </div>
               </div>
@@ -281,8 +372,77 @@ export function App() {
           </Group>
         </Panel>
       </Group>
+      <footer className="status-bar">
+        <PythonStatus python={python} />
+        {settings && (
+          <span className="bank-path" title={settings.bankDir}>
+            Bank: {settings.bankDir}
+          </span>
+        )}
+      </footer>
+      {editingSettings && settings && (
+        <SettingsDialog initial={settings} onSave={saveSettings} onClose={() => setEditingSettings(false)} />
+      )}
     </div>
   );
+}
+
+/** The question `id` if the bank still lists it, else the first loadable one. */
+function stillListedOrFirst(list: QuestionSummary[], id: string | undefined): QuestionSummary | undefined {
+  return list.find((q) => q.id === id) ?? list.find((q) => q.ok);
+}
+
+/** The interpreter runs use, or why there is none and how to fix it. */
+function PythonStatus({ python }: { python: DiscoverResult | undefined }) {
+  if (python === undefined) return <span className="python-status">Finding Python…</span>;
+  if (!python.ok) {
+    return (
+      <span className="python-status error" role="alert">
+        {python.error} Run and Submit are disabled until then.
+      </span>
+    );
+  }
+  return (
+    <span className="python-status" title={python.python.path}>
+      Python {python.python.version} · {python.python.path}
+    </span>
+  );
+}
+
+/** The statement panel when no question is open: why not, most specific reason first. */
+function NothingOpen(props: {
+  bankError: string | undefined;
+  malformed: Extract<QuestionSummary, { ok: false }> | undefined;
+  loadError: string | undefined;
+  empty: boolean;
+}) {
+  if (props.bankError) {
+    return (
+      <div className="malformed">
+        <h2>Cannot read the question bank</h2>
+        <p>{props.bankError}. Choose another folder in Settings.</p>
+      </div>
+    );
+  }
+  if (props.malformed) {
+    const { folder, errors } = props.malformed;
+    return (
+      <div className="malformed">
+        <h2>{folder} is malformed</h2>
+        <p>Fix these problems in the question folder, then click Refresh:</p>
+        <ul>
+          {errors.map((e, i) => (
+            <li key={i}>
+              <code>{e.path}</code>: {e.message}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  if (props.loadError) return <p className="placeholder">{props.loadError}</p>;
+  if (props.empty) return <p className="placeholder">No questions in this bank. Add a q&lt;N&gt;_&lt;slug&gt; folder, then click Refresh.</p>;
+  return <p className="placeholder">Loading…</p>;
 }
 
 /**

@@ -57,7 +57,33 @@ body { background: var(--bg); color: var(--fg); }
 .stopwatch.idle { color: var(--muted); }
 .stopwatch.warn { color: var(--warn); }
 .stopwatch.over { color: var(--fail); }
-.python-status { margin-left: auto; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.spacer { margin-left: auto; }
+.status-bar {
+  display: flex; align-items: center; gap: 16px; min-width: 0;
+  padding: 3px 12px; border-top: 1px solid var(--border); background: var(--panel);
+  color: var(--muted); font-size: 12px;
+}
+.status-bar > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.python-status.error { color: var(--fail); white-space: normal; }
+.bank-path { margin-left: auto; }
+
+.malformed { padding: 4px 20px 24px; line-height: 1.55; overflow: auto; height: 100%; box-sizing: border-box; }
+.malformed h2 { color: var(--fail); }
+.malformed code { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; font-size: 13px; }
+
+dialog.settings {
+  width: min(560px, 90vw); padding: 0 20px 16px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--fg);
+}
+dialog.settings::backdrop { background: rgb(0 0 0 / 0.4); }
+dialog.settings label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; font-weight: 600; }
+dialog.settings label .muted { font-weight: normal; font-size: 12px; }
+dialog.settings input {
+  padding: 5px 8px; font: inherit; font-weight: normal;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px;
+}
+.settings-error { color: var(--fail); }
+.settings-actions { display: flex; justify-content: flex-end; gap: 8px; }
 button.primary {
   padding: 5px 18px; border: none; border-radius: 6px; cursor: pointer;
   background: var(--accent); color: var(--accent-fg); font-weight: 600;

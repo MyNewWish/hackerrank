@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createPracticeService } from "../src/practice";
-import { makeTree, SUM_REFERENCE, sumQuestionFiles } from "./helpers";
+import { makeTree, SUM_REFERENCE, sumQuestionFiles, writeTree } from "./helpers";
 
 /** A repo-like root holding `questions/` with the given files; returns the bank path. */
 function bankWith(files: Record<string, string>): string {
@@ -179,5 +179,41 @@ describe("practice service", () => {
 
     expect(await service.detectPython()).toEqual({ ok: false, error: expect.stringContaining("definitely-not-a-python") });
     await expect(service.run("q1", SUM_REFERENCE)).rejects.toThrow("definitely-not-a-python");
+  });
+
+  test("an invalid Python override says to fix or clear it in settings", async () => {
+    const service = createPracticeService({
+      bankDir: bankWith(sumQuestionFiles("q1_sum/")),
+      pythonOverride: "definitely-not-a-python",
+    });
+
+    const found = await service.detectPython();
+
+    expect(found.ok).toBe(false);
+    if (!found.ok) expect(found.error).toContain("settings");
+  });
+
+  test("a question folder added to the bank is listed on the next scan, without a new service", () => {
+    const bankDir = bankWith(sumQuestionFiles("q1_sum/"));
+    const service = createPracticeService({ bankDir });
+    expect(service.listQuestions().map((q) => q.id)).toEqual(["q1"]);
+
+    writeTree(bankDir, sumQuestionFiles("q2_new/"));
+
+    expect(service.listQuestions().map((q) => q.id)).toEqual(["q1", "q2"]);
+  });
+
+  test("a bank folder that is gone is reported by path instead of a raw file-system error", () => {
+    const bankDir = join(makeTree({}), "moved-away");
+    const service = createPracticeService({ bankDir });
+
+    expect(() => service.listQuestions()).toThrow(`Question bank folder "${bankDir}" not found`);
+  });
+
+  test("a bank in any folder keeps its workspace as that folder's sibling", () => {
+    const bankDir = join(makeTree(sumQuestionFiles("elsewhere/my-bank/q1_sum/")), "elsewhere", "my-bank");
+    createPracticeService({ bankDir }).writeSolution("q1", "print(1)\n");
+
+    expect(readFileSync(join(bankDir, "..", "workspace", "q1_solution.py"), "utf8")).toBe("print(1)\n");
   });
 });
