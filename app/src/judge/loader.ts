@@ -14,7 +14,8 @@ import type {
 
 const DEFAULT_TIME_LIMIT_MS = 5000;
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
-const TEST_KINDS: TestKind[] = ["sample", "hidden"];
+/** Test folders inside each part, in run order. */
+export const TEST_KINDS: readonly TestKind[] = ["sample", "hidden"];
 
 /** A part as declared in question.yaml, before its tests are attached. */
 type PartDeclaration = Pick<Part, "id" | "title">;

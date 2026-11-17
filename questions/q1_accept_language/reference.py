@@ -1,4 +1,9 @@
-"""Reference solution - Accept-Language negotiation (all 4 parts)."""
+"""Reference solution - Accept-Language negotiation (all 4 parts).
+
+Reads the header line and the supported-tags line from stdin; prints one tag per line, or NONE.
+"""
+
+import sys
 
 
 def _parse_header(header):
@@ -58,5 +63,13 @@ def parse_accept_language(header, supported):
     return [tag for _, tag in scored]
 
 
+def main():
+    lines = sys.stdin.read().splitlines()
+    header = lines[0] if lines else ""
+    supported = lines[1].split() if len(lines) > 1 else []
+    result = parse_accept_language(header, supported)
+    print("\n".join(result) if result else "NONE")
+
+
 if __name__ == "__main__":
-    print(parse_accept_language("en-US, fr-CA, fr-FR", ["fr-FR", "en-US"]))
+    main()

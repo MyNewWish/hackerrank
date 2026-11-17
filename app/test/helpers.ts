@@ -48,3 +48,10 @@ export function sumQuestionFiles(prefix = "", yamlExtra = ""): Record<string, st
     [`${prefix}tests/part2/hidden/01.out`]: "101\n15\n0\n",
   };
 }
+
+/** A reference.py for the sum question: one sum per input line. */
+export const SUM_REFERENCE = `import sys
+for line in sys.stdin.read().splitlines():
+    a, b = map(int, line.split())
+    print(a + b)
+`;

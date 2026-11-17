@@ -1,0 +1,9 @@
+title: Accept-Language negotiation
+difficulty: medium
+tags: [parsing, http, sorting]
+targetMinutes: 45
+parts:
+  - { id: part1, title: Exact matches }
+  - { id: part2, title: Language-only tags }
+  - { id: part3, title: Wildcard }
+  - { id: part4, title: Quality factors }

@@ -1,0 +1,2 @@
+questions/**/*.in text eol=lf
+questions/**/*.out text eol=lf

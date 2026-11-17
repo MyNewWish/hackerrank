@@ -88,25 +88,62 @@ async function runTest(
   question: Question,
   signal: AbortSignal | undefined,
 ): Promise<TestResult | undefined> {
-  const started = performance.now();
-  const { stopped, ...output } = await execute(python.path, ["-I", "-u", solution], cwd, test.input, {
+  const { status, ...run } = await runProgram({
+    python,
+    file: solution,
+    cwd,
+    input: test.input,
     timeLimitMs: question.timeLimitMs,
+    signal,
+  });
+  if (status === "cancelled") return undefined;
+  const base = { testId: test.id, partId: test.partId, kind: test.kind, ...run };
+  if (status !== "ok") return { ...base, status };
+  return { ...base, status: outputsMatch(test.expected, run.stdout, question.compare) ? "pass" : "wrong" };
+}
+
+/** How a single program run ended: `ok` = exited 0 on its own; `error` = non-zero exit or output limit. */
+export type ProgramStatus = "ok" | "error" | "timeout" | "cancelled";
+
+export interface ProgramResult extends ProcessOutput {
+  status: ProgramStatus;
+  durationMs: number;
+  /** Why the runner stopped the process early, e.g. "Time limit exceeded (5000 ms)". */
+  note?: string;
+}
+
+export interface ProgramOptions {
+  python: PythonInfo;
+  /** The Python file to run, as `<python> -I -u <file>`. */
+  file: string;
+  /** Working directory of the process. */
+  cwd: string;
+  /** Piped to stdin. */
+  input: string;
+  timeLimitMs: number;
+  /** Aborting kills the process; the result then has status `cancelled`. */
+  signal?: AbortSignal;
+}
+
+/** Runs one Python program on one stdin, under the time and output limits, without grading it. */
+export async function runProgram(options: ProgramOptions): Promise<ProgramResult> {
+  const { python, file, cwd, input, timeLimitMs, signal } = options;
+  const started = performance.now();
+  const { stopped, ...output } = await execute(python.path, ["-I", "-u", file], cwd, input, {
+    timeLimitMs,
     outputLimitBytes: OUTPUT_LIMIT_BYTES,
     signal,
   });
-  const durationMs = Math.round(performance.now() - started);
-  const base = { testId: test.id, partId: test.partId, kind: test.kind, ...output, durationMs };
+  const result = { ...output, durationMs: Math.round(performance.now() - started) };
   switch (stopped) {
     case "cancelled":
-      return undefined;
+      return { ...result, status: "cancelled" };
     case "timeout":
-      return { ...base, status: "timeout", note: `Time limit exceeded (${question.timeLimitMs} ms)` };
+      return { ...result, status: "timeout", note: `Time limit exceeded (${timeLimitMs} ms)` };
     case "output":
-      return { ...base, status: "error", note: `Output limit exceeded (${OUTPUT_LIMIT_BYTES / 1024 / 1024} MB per stream)` };
+      return { ...result, status: "error", note: `Output limit exceeded (${OUTPUT_LIMIT_BYTES / 1024 / 1024} MB per stream)` };
   }
-  const status: TestStatus =
-    output.exitCode !== 0 ? "error" : outputsMatch(test.expected, output.stdout, question.compare) ? "pass" : "wrong";
-  return { ...base, status };
+  return { ...result, status: output.exitCode === 0 ? "ok" : "error" };
 }
 
 /** When the runner must stop a process early. */
