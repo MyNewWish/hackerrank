@@ -1,6 +1,6 @@
 title: Payment command processor
 difficulty: hard
-tags: [state-machine, parsing, idempotency, money]
+tags: [stripe, state-machine, parsing, idempotency, money]
 targetMinutes: 60
 parts:
   - { id: part1, title: Lifecycle }

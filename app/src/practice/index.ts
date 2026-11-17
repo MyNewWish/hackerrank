@@ -109,6 +109,7 @@ export function createPracticeService({ bankDir, pythonOverride }: PracticeServi
               title: entry.question.title,
               difficulty: entry.question.difficulty,
               targetMinutes: entry.question.targetMinutes,
+              tags: entry.question.tags,
             }
           : { id: entry.id, ok: false, folder: entry.folder, errors: entry.errors },
       );

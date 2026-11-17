@@ -20,10 +20,28 @@ describe("practice service", () => {
     const service = createPracticeService({ bankDir });
 
     expect(service.listQuestions()).toEqual([
-      { id: "q2", ok: true, title: "Sum two numbers", difficulty: "easy", targetMinutes: 10 },
+      { id: "q2", ok: true, title: "Sum two numbers", difficulty: "easy", targetMinutes: 10, tags: ["math", "io"] },
       { id: "q3", ok: false, folder: "q3_broken", errors: expect.any(Array) },
-      { id: "q10", ok: true, title: "Sum two numbers", difficulty: "easy", targetMinutes: 10 },
+      { id: "q10", ok: true, title: "Sum two numbers", difficulty: "easy", targetMinutes: 10, tags: ["math", "io"] },
     ]);
+  });
+
+  test("lists each well-formed question's tags in bank order; malformed questions have none", () => {
+    const q5 = sumQuestionFiles("q5_sum/");
+    q5["q5_sum/question.yaml"] = q5["q5_sum/question.yaml"]!.replace("tags: [math, io]", "tags: [stripe, parsing, money]");
+    const bankDir = bankWith({
+      ...q5,
+      ...sumQuestionFiles("q1_sum/"),
+      "q2_broken/question.yaml": "title: [unterminated\n",
+    });
+    const summaries = createPracticeService({ bankDir }).listQuestions();
+
+    expect(summaries.map((s) => [s.id, s.ok ? s.tags : undefined])).toEqual([
+      ["q1", ["math", "io"]],
+      ["q2", undefined],
+      ["q5", ["stripe", "parsing", "money"]],
+    ]);
+    expect(summaries[1]).not.toHaveProperty("tags");
   });
 
   test("loads a question's statement, ordered parts and test list (no test data) for display", () => {

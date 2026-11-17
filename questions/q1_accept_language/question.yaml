@@ -1,6 +1,6 @@
 title: Accept-Language negotiation
 difficulty: medium
-tags: [parsing, http, sorting]
+tags: [stripe, parsing, http, sorting]
 targetMinutes: 45
 parts:
   - { id: part1, title: Exact matches }

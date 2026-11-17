@@ -1,6 +1,6 @@
 title: Shipping cost
 difficulty: medium
-tags: [parsing, graphs, dijkstra]
+tags: [stripe, parsing, graphs, dijkstra]
 targetMinutes: 50
 parts:
   - { id: part1, title: Direct cost }

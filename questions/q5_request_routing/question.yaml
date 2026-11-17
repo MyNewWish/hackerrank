@@ -1,6 +1,6 @@
 title: Request router
 difficulty: hard
-tags: [parsing, routing, round-robin, simulation]
+tags: [stripe, parsing, routing, round-robin, simulation]
 targetMinutes: 60
 parts:
   - { id: part1, title: Exact routes }

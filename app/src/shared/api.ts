@@ -72,7 +72,7 @@ export interface ReferenceStatus {
 }
 
 export type QuestionSummary =
-  | { id: string; ok: true; title: string; difficulty: Difficulty; targetMinutes: number }
+  | { id: string; ok: true; title: string; difficulty: Difficulty; targetMinutes: number; tags: string[] }
   | { id: string; ok: false; folder: string; errors: ValidationError[] };
 
 export interface QuestionView {

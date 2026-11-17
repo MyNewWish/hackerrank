@@ -1,6 +1,6 @@
 title: Merchant ledger & dispute monitoring
 difficulty: hard
-tags: [parsing, csv, money, idempotency, sliding-window]
+tags: [stripe, parsing, csv, money, idempotency, sliding-window]
 targetMinutes: 60
 parts:
   - { id: part1, title: Balances }
