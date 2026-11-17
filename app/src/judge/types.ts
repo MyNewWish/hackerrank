@@ -1,5 +1,6 @@
 export type Difficulty = "easy" | "medium" | "hard";
-export type CompareMode = "lines";
+/** `float:<eps>` compares whitespace-separated tokens numerically within eps. */
+export type CompareMode = "lines" | "exact" | `float:${string}`;
 export type TestKind = "sample" | "hidden";
 
 export interface TestCase {

@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from "bun:test";
-import { copyFileSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -11,7 +11,7 @@ import {
   type Question,
   type TestResult,
 } from "../src/judge";
-import { makeTree, sumQuestionFiles } from "./helpers";
+import { makeTree, SUM_YAML, sumQuestionFiles } from "./helpers";
 
 const SOLUTIONS = join(import.meta.dir, "fixtures", "solutions");
 
@@ -201,3 +201,133 @@ describe("runQuestion", () => {
     expect(realpathSync(report.results[0]!.stdout.trim())).toBe(realpathSync(workspace));
   });
 });
+
+/** The sum question with extra top-level `question.yaml` lines (e.g. `timeLimitMs: 500`). */
+function sumQuestionWith(yamlExtra: string): Question {
+  const files = sumQuestionFiles("q1_sum/");
+  files["q1_sum/question.yaml"] = SUM_YAML + yamlExtra;
+  const loaded = loadQuestion(join(makeTree(files), "q1_sum"));
+  if (!loaded.ok) throw new Error(JSON.stringify(loaded.errors));
+  return loaded.question;
+}
+
+describe("runQuestion comparison modes", () => {
+  test("`exact` fails a trailing-whitespace variant that the default `lines` passes", async () => {
+    const workspaceDir = workspaceWith("trailing_whitespace.py");
+    const lines = await runQuestion({ python, question, workspaceDir, mode: "run" });
+    const exact = await runQuestion({ python, question: sumQuestionWith("compare: exact\n"), workspaceDir, mode: "run" });
+
+    expect(lines.results.map((r) => r.status)).toEqual(["pass", "pass"]);
+    expect(exact.results.map((r) => r.status)).toEqual(["wrong", "wrong"]);
+  });
+
+  test("`exact` passes output that matches byte for byte", async () => {
+    const report = await runQuestion({
+      python,
+      question: sumQuestionWith("compare: exact\n"),
+      workspaceDir: workspaceWith("correct.py"),
+      mode: "submit",
+    });
+
+    expect(report.summary.passed).toBe(5);
+  });
+
+  test("`float:<eps>` passes float noise within eps and fails it beyond eps", async () => {
+    // float_noise.py prints e.g. "3.0000000001" for an expected "3"
+    const workspaceDir = workspaceWith("float_noise.py");
+    const run = (yaml: string) => runQuestion({ python, question: sumQuestionWith(yaml), workspaceDir, mode: "submit" });
+
+    const loose = await run("compare: float:1e-6\n");
+    const tight = await run("compare: float:1e-12\n");
+    const lines = await run("");
+
+    expect(loose.summary.passed).toBe(5);
+    expect(tight.summary.passed).toBe(0);
+    expect(lines.summary.passed).toBe(0);
+  });
+});
+
+describe("runQuestion limits", () => {
+  test("a solution that never finishes is killed at the question's time limit and marked timeout", async () => {
+    const started = performance.now();
+    const report = await runQuestion({
+      python,
+      question: sumQuestionWith("timeLimitMs: 500\n"),
+      workspaceDir: workspaceWith("infinite_loop.py"),
+      mode: "run",
+    });
+    const elapsed = performance.now() - started;
+
+    expect(report.results.map((r) => r.status)).toEqual(["timeout", "timeout"]);
+    expect(report.results[0]!.note).toMatch(/time limit/i);
+    expect(report.summary.passed).toBe(0);
+    // two tests at 500 ms each, far below the 5000 ms default
+    expect(elapsed).toBeLessThan(4000);
+  });
+
+  test("a solution that floods stdout is killed at ~1 MB and marked error with an output-limit note", async () => {
+    const report = await runQuestion({
+      python,
+      question,
+      workspaceDir: workspaceWith("output_flood.py"),
+      mode: "run",
+    });
+
+    expect(report.results.map((r) => r.status)).toEqual(["error", "error"]);
+    const first = report.results[0]!;
+    expect(first.note).toMatch(/output limit exceeded/i);
+    // kept output is bounded by the cap, not by how much the solution managed to print
+    expect(first.stdout.length).toBeGreaterThan(0);
+    expect(first.stdout.length).toBeLessThanOrEqual(1024 * 1024);
+  });
+
+  test("cancelling a run kills the running process and starts no further tests", async () => {
+    const workspace = workspaceWith("infinite_loop.py");
+    const pidFile = join(workspace, "solution.pid");
+    const controller = new AbortController();
+    const streamed: TestResult[] = [];
+    const started = performance.now();
+
+    const running = runQuestion({
+      python,
+      question, // default 5000 ms limit: only cancellation can end this quickly
+      workspaceDir: workspace,
+      mode: "submit",
+      onResult: (r) => streamed.push(r),
+      signal: controller.signal,
+    });
+    while (!existsSync(pidFile)) await Bun.sleep(20);
+    const pid = Number(readFileSync(pidFile, "utf8"));
+    controller.abort();
+    const report = await running;
+
+    expect(performance.now() - started).toBeLessThan(3000);
+    expect(report.cancelled).toBe(true);
+    expect(report.results).toEqual([]);
+    expect(streamed).toEqual([]);
+    expect(isAlive(pid)).toBe(false);
+  });
+
+  test("a run cancelled before it starts runs nothing", async () => {
+    const report = await runQuestion({
+      python,
+      question,
+      workspaceDir: workspaceWith("correct.py"),
+      mode: "submit",
+      signal: AbortSignal.abort(),
+    });
+
+    expect(report.cancelled).toBe(true);
+    expect(report.results).toEqual([]);
+    expect(report.summary.total).toBe(0);
+  });
+});
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}

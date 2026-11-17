@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { COMPARE_MODE_HELP, isCompareMode } from "./compare";
 import type {
   CompareMode,
   Difficulty,
@@ -13,7 +14,6 @@ import type {
 
 const DEFAULT_TIME_LIMIT_MS = 5000;
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
-const COMPARE_MODES: CompareMode[] = ["lines"];
 const TEST_KINDS: TestKind[] = ["sample", "hidden"];
 
 /** A part as declared in question.yaml, before its tests are attached. */
@@ -111,8 +111,8 @@ function readMeta(dir: string, errors: ValidationError[]): Meta | undefined {
   if (raw.timeLimitMs !== undefined && !isPositiveNumber(raw.timeLimitMs)) {
     fail("`timeLimitMs` must be a positive number");
   }
-  if (raw.compare !== undefined && !COMPARE_MODES.includes(raw.compare as CompareMode)) {
-    fail(`\`compare\` must be one of ${COMPARE_MODES.join(", ")}`);
+  if (raw.compare !== undefined && !isCompareMode(raw.compare)) {
+    fail(`\`compare\` must be one of ${COMPARE_MODE_HELP}; got ${JSON.stringify(raw.compare)}`);
   }
 
   const parts: PartDeclaration[] = [];
