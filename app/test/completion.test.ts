@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { pythonCompletions } from "../src/renderer/src/completion";
+import { pythonCompletions, type CompletionKind } from "../src/renderer/src/completion";
 
-const labelsOf = (kind: string, text = "", word = "") =>
+const labelsOf = (kind: CompletionKind, text = "", word = "") =>
   pythonCompletions(text, word)
     .filter((c) => c.kind === kind)
     .map((c) => c.label);

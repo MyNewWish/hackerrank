@@ -132,17 +132,12 @@ export function App() {
   const resetCode = async () => {
     if (!open) return;
     const { id } = open.question;
+    // Another question is loading, or a run is grading the saved file: leave the code alone.
+    if (current.current !== id || busy.current) return;
     if (!window.confirm(`Reset ${id}? This empties the editor and your saved code for this question.`)) return;
-    code.current = "";
+    // The change event queues the empty file's save; flush writes it now.
     editorRef.current?.setValue("");
-    // After setValue, whose change event queues a save of its own: this save replaces it.
-    autosave.cancel();
-    try {
-      await api.writeSolution(id, "");
-      setSaveError(undefined);
-    } catch (e) {
-      setSaveError(errorMessage(e));
-    }
+    await autosave.flush();
   };
 
   // Capture phase, so the editor never sees the shortcut (Monaco binds Ctrl+Enter itself).
@@ -194,7 +189,7 @@ export function App() {
           type="button"
           className="secondary"
           onClick={() => void resetCode()}
-          disabled={!open}
+          disabled={!open || running}
           title="Empty the editor and the saved code for this question"
         >
           Reset

@@ -14,25 +14,38 @@ const KIND = {
   identifier: monaco.languages.CompletionItemKind.Variable,
 } satisfies Record<CompletionKind, monaco.languages.CompletionItemKind>;
 
-// Static Python completion. Monaco skips its own word-based suggestions whenever a language's
-// provider answers, so this provider offers the file's identifiers itself. A language server
-// would register its own provider here instead.
-monaco.languages.registerCompletionItemProvider("python", {
-  provideCompletionItems(model, position) {
-    const word = model.getWordUntilPosition(position);
-    const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-    const wordAtCursor = model.getWordAtPosition(position)?.word ?? "";
-    return {
-      suggestions: pythonCompletions(model.getValue(), wordAtCursor).map((c) => ({
-        label: c.label,
-        kind: KIND[c.kind],
-        insertText: c.insertText,
-        detail: c.detail,
-        range,
-        ...(c.kind === "snippet" && {
-          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        }),
-      })),
-    };
-  },
-});
+/**
+ * Registers the static Python completion; dispose the result to remove it (e.g. when a language
+ * server takes over). Monaco skips its own word-based suggestions whenever a language's provider
+ * answers, so this provider offers the file's identifiers itself.
+ */
+export function registerStaticPythonCompletion(): monaco.IDisposable {
+  return monaco.languages.registerCompletionItemProvider("python", { provideCompletionItems });
+}
+
+function provideCompletionItems(
+  model: monaco.editor.ITextModel,
+  position: monaco.Position,
+): monaco.languages.CompletionList {
+  const word = model.getWordUntilPosition(position);
+  // After a `.` only attributes make sense, and this static list knows none.
+  if (model.getLineContent(position.lineNumber)[word.startColumn - 2] === ".") return { suggestions: [] };
+  const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+  const wordAtCursor = model.getWordAtPosition(position)?.word ?? "";
+  return {
+    suggestions: pythonCompletions(model.getValue(), wordAtCursor).map((c) => ({
+      label: c.label,
+      kind: KIND[c.kind],
+      insertText: c.insertText,
+      detail: c.detail,
+      range,
+      ...(c.kind === "snippet" && {
+        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+      }),
+    })),
+  };
+}
+
+const staticCompletion = registerStaticPythonCompletion();
+// In development, a hot reload of this module must not leave the old provider registered too.
+import.meta.hot?.dispose(() => staticCompletion.dispose());

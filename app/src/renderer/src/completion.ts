@@ -59,7 +59,7 @@ const SNIPPETS: Omit<CompletionEntry, "kind">[] = [
   },
 ];
 
-const KNOWN = new Set([...KEYWORDS, ...BUILTINS]);
+const KEYWORDS_AND_BUILTINS = new Set([...KEYWORDS, ...BUILTINS]);
 
 /**
  * Words in `text` that look like identifiers and aren't keywords or builtins. `wordAtCursor`, the
@@ -68,7 +68,7 @@ const KNOWN = new Set([...KEYWORDS, ...BUILTINS]);
 function identifiersIn(text: string, wordAtCursor: string): string[] {
   const counts = new Map<string, number>();
   for (const [word] of text.matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)) {
-    if (!KNOWN.has(word)) counts.set(word, (counts.get(word) ?? 0) + 1);
+    if (!KEYWORDS_AND_BUILTINS.has(word)) counts.set(word, (counts.get(word) ?? 0) + 1);
   }
   if (counts.get(wordAtCursor) === 1) counts.delete(wordAtCursor);
   return [...counts.keys()];
