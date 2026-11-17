@@ -53,7 +53,12 @@ export interface Settings {
   bankDir: string;
   /** Python interpreter to use; empty = auto-detect. */
   pythonPath: string;
+  /** The editor's Python features: pyright (`full`), or only basic completion as on HackerRank. */
+  ideMode: IdeMode;
 }
+
+export const IDE_MODES = ["full", "hackerrank"] as const;
+export type IdeMode = (typeof IDE_MODES)[number];
 
 export type QuestionSummary =
   | { id: string; ok: true; title: string; difficulty: Difficulty; targetMinutes: number }
@@ -84,6 +89,7 @@ export const CHANNELS = {
   detectPython: "python:detect",
   getSettings: "settings:get",
   updateSettings: "settings:update",
+  setIdeMode: "settings:set-ide-mode",
   lspOpen: "lsp:open",
   lspChange: "lsp:change",
   lspClose: "lsp:close",
@@ -123,8 +129,14 @@ export interface HackrankApi {
    * to them. Rejects, changing nothing, if the bank folder does not exist.
    */
   updateSettings(settings: Settings): Promise<Settings>;
+  /**
+   * Saves the editor mode and returns the settings; the bank folder is not checked again.
+   * Switching to `hackerrank` stops the pyright server; the next `lspOpen` in `full` starts it.
+   */
+  setIdeMode(mode: IdeMode): Promise<Settings>;
 
-  // Python language features, from a pyright server the main process starts on the first `lspOpen`.
+  // Python language features, from a pyright server the main process starts on the first `lspOpen`
+  // in the full IDE mode (`lspOpen` does nothing in the HackerRank-like mode).
   // Each open question is one in-memory document; the server never reads the saved file.
   /** Opens question `id`'s document with the editor's text. */
   lspOpen(id: string, text: string): void;

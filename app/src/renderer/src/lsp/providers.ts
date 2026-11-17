@@ -23,24 +23,30 @@ const MARKER_OWNER = "pyright";
 const serverItems = new WeakMap<monaco.languages.CompletionItem, CompletionItem>();
 
 /**
- * Makes `editor`'s text question `id`'s document on the server, for as long as the editor lives:
- * opened now, sent in full on every edit, closed when the editor is disposed.
+ * Makes `editor`'s text question `id`'s document on the server until the editor is disposed or
+ * the result is: opened now, sent in full on every edit, then closed and its markers cleared.
  */
-export function attachPyright(editor: monaco.editor.IStandaloneCodeEditor, id: string): void {
+export function attachPyright(editor: monaco.editor.IStandaloneCodeEditor, id: string): monaco.IDisposable {
   const model = editor.getModel();
-  if (!model) return;
+  if (!model) return { dispose() {} };
   documents.set(model, id);
   models.set(id, model);
   api.lspOpen(id, model.getValue());
   const changes = model.onDidChangeContent(() => api.lspChange(id, model.getValue()));
-  editor.onDidDispose(() => {
+  let attached = true;
+  const detach = () => {
+    if (!attached) return;
+    attached = false;
     changes.dispose();
+    editorDisposed.dispose();
     documents.delete(model);
     // A newer editor for the same question may have taken the entry already.
     if (models.get(id) === model) models.delete(id);
-    monaco.editor.setModelMarkers(model, MARKER_OWNER, []);
+    if (!model.isDisposed()) monaco.editor.setModelMarkers(model, MARKER_OWNER, []);
     api.lspClose(id);
-  });
+  };
+  const editorDisposed = editor.onDidDispose(detach);
+  return { dispose: detach };
 }
 
 /**

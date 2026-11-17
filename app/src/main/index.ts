@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPracticeService } from "../practice";
 import { createSettingsStore } from "../settings";
-import { CHANNELS, RUN_MODES, type CompletionItem, type Position, type RunMode, type Settings, type SignatureHelpContext } from "../shared/api";
+import { CHANNELS, IDE_MODES, RUN_MODES, type CompletionItem, type IdeMode, type Position, type RunMode, type Settings, type SignatureHelpContext } from "../shared/api";
 import { SignatureHelpTriggerKind } from "vscode-languageserver-protocol";
 import { createPyrightHost } from "./lsp/server";
 
@@ -71,6 +71,12 @@ function registerIpc(): void {
   ipcMain.handle(CHANNELS.updateSettings, (_e, next) => {
     const saved = settings.update(requireSettings(next));
     service = serviceFor(saved);
+    stopPyrightUnlessFull(saved.ideMode);
+    return saved;
+  });
+  ipcMain.handle(CHANNELS.setIdeMode, (_e, mode) => {
+    const saved = settings.setIdeMode(requireIdeMode(mode));
+    stopPyrightUnlessFull(saved.ideMode);
     return saved;
   });
   // Language server traffic: a bad message is dropped rather than answered.
@@ -82,7 +88,10 @@ function registerIpc(): void {
         // ignored: only the renderer's own bug could send it
       }
     });
-  lspMessage(CHANNELS.lspOpen, (id, text) => [requireString(id), requireString(text)] as const, pyright.open);
+  // Only the full IDE starts the server; an open sent while switching away from it is dropped.
+  lspMessage(CHANNELS.lspOpen, (id, text) => [requireString(id), requireString(text)] as const, (id, text) => {
+    if (settings.get().ideMode === "full") pyright.open(id, text);
+  });
   lspMessage(CHANNELS.lspChange, (id, text) => [requireString(id), requireString(text)] as const, pyright.change);
   lspMessage(CHANNELS.lspClose, (id) => [requireString(id)] as const, pyright.close);
   ipcMain.handle(CHANNELS.lspCompletion, (_e, id, position) =>
@@ -122,9 +131,19 @@ function requireSignatureHelpContext(value: unknown): SignatureHelpContext {
 }
 
 function requireSettings(value: unknown): Settings {
-  const { bankDir, pythonPath } = (value ?? {}) as Partial<Record<keyof Settings, unknown>>;
+  const { bankDir, pythonPath, ideMode } = (value ?? {}) as Partial<Record<keyof Settings, unknown>>;
   if (typeof bankDir !== "string" || typeof pythonPath !== "string") throw new TypeError("expected settings");
-  return { bankDir, pythonPath };
+  return { bankDir, pythonPath, ideMode: requireIdeMode(ideMode) };
+}
+
+function requireIdeMode(value: unknown): IdeMode {
+  if (!IDE_MODES.includes(value as IdeMode)) throw new TypeError("expected an editor mode");
+  return value as IdeMode;
+}
+
+/** The HackerRank-like editor has no pyright features, so its server is stopped. */
+function stopPyrightUnlessFull(mode: IdeMode): void {
+  if (mode === "hackerrank") pyright.stop();
 }
 
 /** The app is offline: only its own files (and the dev server in development) may load. */

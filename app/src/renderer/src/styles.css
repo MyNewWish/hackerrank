@@ -93,6 +93,11 @@ button.secondary {
   background: var(--bg); color: var(--fg); font-weight: 600;
 }
 button.primary:disabled, button.secondary:disabled { opacity: 0.5; cursor: default; }
+.ide-mode { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.ide-mode button { background: var(--bg); border: none; padding: 4px 10px; color: var(--muted); cursor: pointer; font: inherit; }
+.ide-mode button + button { border-left: 1px solid var(--border); }
+.ide-mode button[aria-pressed="true"] { background: var(--selected); color: var(--fg); font-weight: 600; }
+.ide-mode button:disabled { opacity: 0.5; cursor: default; }
 
 .panels { flex: 1 1 auto; min-height: 0; }
 .separator { background: var(--border); }

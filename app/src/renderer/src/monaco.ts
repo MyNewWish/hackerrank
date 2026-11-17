@@ -3,7 +3,14 @@ import { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { pythonCompletions, type CompletionKind } from "./completion";
-import { registerPyrightCompletion, registerPyrightHover, registerPyrightSignatureHelp, showPyrightDiagnostics } from "./lsp/providers";
+import type { IdeMode } from "../../shared/api";
+import {
+  attachPyright,
+  registerPyrightCompletion,
+  registerPyrightHover,
+  registerPyrightSignatureHelp,
+  showPyrightDiagnostics,
+} from "./lsp/providers";
 
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
 loader.config({ monaco });
@@ -47,15 +54,61 @@ function provideCompletionItems(
   };
 }
 
-// Pyright supplies Python completion; the static provider returns with the HackerRank-like mode.
-const completion = registerPyrightCompletion();
-const hover = registerPyrightHover();
-const signatureHelp = registerPyrightSignatureHelp();
-const diagnostics = showPyrightDiagnostics();
+/** An editor on screen: the question it shows, and its pyright attachment in the full IDE. */
+interface TrackedEditor {
+  id: string;
+  pyright?: monaco.IDisposable;
+}
+const editors = new Map<monaco.editor.IStandaloneCodeEditor, TrackedEditor>();
+/** The mode's providers; none until the saved mode is known. */
+let mode: IdeMode | undefined;
+let providers: monaco.IDisposable[] = [];
+
+/**
+ * Gives `editor` (showing question `id`) the current mode's Python features, and follows later
+ * switches until it is disposed.
+ */
+export function trackEditor(editor: monaco.editor.IStandaloneCodeEditor, id: string): void {
+  const entry: TrackedEditor = { id };
+  editors.set(editor, entry);
+  editor.onDidDispose(() => {
+    entry.pyright?.dispose();
+    editors.delete(editor);
+  });
+  if (mode !== undefined) applyTo(editor, entry, mode);
+}
+
+/**
+ * Switches the editor's Python features. `full`: pyright's completion, hover, signature help and
+ * diagnostics, with Monaco's word suggestions off since pyright's completions include the file's
+ * names. `hackerrank`: only the static completion and word suggestions, as on the real screen.
+ */
+export function applyIdeMode(next: IdeMode): void {
+  if (next === mode) return;
+  mode = next;
+  for (const p of providers) p.dispose();
+  providers =
+    next === "full"
+      ? [registerPyrightCompletion(), registerPyrightHover(), registerPyrightSignatureHelp(), showPyrightDiagnostics()]
+      : [registerStaticPythonCompletion()];
+  for (const [editor, entry] of editors) applyTo(editor, entry, next);
+}
+
+function applyTo(
+  editor: monaco.editor.IStandaloneCodeEditor,
+  entry: TrackedEditor,
+  to: IdeMode,
+): void {
+  editor.updateOptions({ wordBasedSuggestions: to === "full" ? "off" : "matchingDocuments" });
+  if (to === "full") entry.pyright ??= attachPyright(editor, entry.id);
+  else {
+    entry.pyright?.dispose();
+    entry.pyright = undefined;
+  }
+}
+
 // In development, a hot reload of this module must not leave the old providers registered too.
 import.meta.hot?.dispose(() => {
-  completion.dispose();
-  hover.dispose();
-  signatureHelp.dispose();
-  diagnostics.dispose();
+  for (const p of providers) p.dispose();
+  for (const entry of editors.values()) entry.pyright?.dispose();
 });

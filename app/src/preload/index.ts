@@ -29,6 +29,7 @@ const api: HackrankApi = {
   detectPython: () => ipcRenderer.invoke(CHANNELS.detectPython),
   getSettings: () => ipcRenderer.invoke(CHANNELS.getSettings),
   updateSettings: (settings) => ipcRenderer.invoke(CHANNELS.updateSettings, settings),
+  setIdeMode: (mode) => ipcRenderer.invoke(CHANNELS.setIdeMode, mode),
   // One-way messages, delivered in order with the requests that follow them.
   lspOpen: (id, text) => ipcRenderer.send(CHANNELS.lspOpen, id, text),
   lspChange: (id, text) => ipcRenderer.send(CHANNELS.lspChange, id, text),

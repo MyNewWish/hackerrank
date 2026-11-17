@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createSettingsStore } from "../src/settings";
 import { makeTree } from "./helpers";
@@ -15,24 +15,25 @@ describe("settings store", () => {
   test("starts with the default bank and auto-detected Python when nothing is saved", () => {
     const { open, defaultBankDir } = setup();
 
-    expect(open().get()).toEqual({ bankDir: defaultBankDir, pythonPath: "" });
+    expect(open().get()).toEqual({ bankDir: defaultBankDir, pythonPath: "", ideMode: "full" });
   });
 
   test("saved settings survive reopening the store (an app restart)", () => {
     const { open, root } = setup();
     const bankDir = join(root, "other", "bank");
 
-    open().update({ bankDir, pythonPath: "/venv/bin/python" });
+    open().update({ bankDir, pythonPath: "/venv/bin/python", ideMode: "hackerrank" });
 
-    expect(open().get()).toEqual({ bankDir, pythonPath: "/venv/bin/python" });
+    expect(open().get()).toEqual({ bankDir, pythonPath: "/venv/bin/python", ideMode: "hackerrank" });
   });
 
   test("blank fields mean the defaults; surrounding whitespace is ignored", () => {
     const { open, defaultBankDir } = setup();
 
-    expect(open().update({ bankDir: "  ", pythonPath: "  python3.12 " })).toEqual({
+    expect(open().update({ bankDir: "  ", pythonPath: "  python3.12 ", ideMode: "full" })).toEqual({
       bankDir: defaultBankDir,
       pythonPath: "python3.12",
+      ideMode: "full",
     });
   });
 
@@ -41,7 +42,7 @@ describe("settings store", () => {
     const store = open();
     const missing = join(root, "nope");
 
-    expect(() => store.update({ bankDir: missing, pythonPath: "" })).toThrow(missing);
+    expect(() => store.update({ bankDir: missing, pythonPath: "", ideMode: "full" })).toThrow(missing);
     expect(store.get().bankDir).toBe(defaultBankDir);
     expect(open().get().bankDir).toBe(defaultBankDir);
   });
@@ -49,7 +50,7 @@ describe("settings store", () => {
   test("refuses a relative bank folder, which would depend on where the app was launched from", () => {
     const { open } = setup();
 
-    expect(() => open().update({ bankDir: "questions", pythonPath: "" })).toThrow("full path");
+    expect(() => open().update({ bankDir: "questions", pythonPath: "", ideMode: "full" })).toThrow("full path");
   });
 
   test("a corrupt settings file falls back to the defaults instead of crashing", () => {
@@ -57,6 +58,33 @@ describe("settings store", () => {
     mkdirSync(join(file, ".."), { recursive: true });
     writeFileSync(file, "{ not json");
 
-    expect(open().get()).toEqual({ bankDir: defaultBankDir, pythonPath: "" });
+    expect(open().get()).toEqual({ bankDir: defaultBankDir, pythonPath: "", ideMode: "full" });
+  });
+
+  test("the editor mode survives reopening the store (an app restart)", () => {
+    const { open } = setup();
+
+    expect(open().setIdeMode("hackerrank").ideMode).toBe("hackerrank");
+
+    expect(open().get().ideMode).toBe("hackerrank");
+  });
+
+  test("an unknown saved editor mode falls back to the full IDE", () => {
+    const { open, file } = setup();
+    mkdirSync(join(file, ".."), { recursive: true });
+    writeFileSync(file, JSON.stringify({ ideMode: "vim" }));
+
+    expect(open().get().ideMode).toBe("full");
+  });
+
+  test("switching the editor mode works even when the saved bank folder has gone", () => {
+    const { open, root } = setup();
+    const bankDir = join(root, "other", "bank");
+    open().update({ bankDir, pythonPath: "", ideMode: "full" });
+    rmSync(bankDir, { recursive: true });
+
+    open().setIdeMode("hackerrank");
+
+    expect(open().get()).toEqual({ bankDir, pythonPath: "", ideMode: "hackerrank" });
   });
 });

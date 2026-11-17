@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, normalize as normalizePath } from "node:path";
-import type { Settings } from "../shared/api";
+import { IDE_MODES, type IdeMode, type Settings } from "../shared/api";
 
 export interface SettingsStoreOptions {
   /** The JSON file settings persist in (in the app's user-data folder). */
@@ -11,14 +11,22 @@ export interface SettingsStoreOptions {
 
 /**
  * The app's settings, persisted as JSON in `file` so they survive a restart. A missing or
- * unreadable file means the defaults: the default bank and auto-detected Python.
+ * unreadable file means the defaults: the default bank, auto-detected Python and the full IDE.
  */
 export function createSettingsStore({ file, defaultBankDir }: SettingsStoreOptions) {
-  /** Trims, and turns blanks into the defaults. */
+  /** Trims, and turns blanks and unknown editor modes into the defaults. */
   const normalize = (s: Partial<Settings>): Settings => {
     const bankDir = typeof s.bankDir === "string" ? s.bankDir.trim() : "";
     const pythonPath = typeof s.pythonPath === "string" ? s.pythonPath.trim() : "";
-    return { bankDir: bankDir ? normalizePath(bankDir) : defaultBankDir, pythonPath };
+    const ideMode = IDE_MODES.includes(s.ideMode as IdeMode) ? (s.ideMode as IdeMode) : "full";
+    return { bankDir: bankDir ? normalizePath(bankDir) : defaultBankDir, pythonPath, ideMode };
+  };
+
+  const save = (settings: Settings): Settings => {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify(settings, null, 2));
+    current = settings;
+    return current;
   };
 
   let current = normalize(readSaved());
@@ -47,10 +55,15 @@ export function createSettingsStore({ file, defaultBankDir }: SettingsStoreOptio
       if (!isDirectory(settings.bankDir)) {
         throw new Error(`Question bank folder "${settings.bankDir}" does not exist`);
       }
-      mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, JSON.stringify(settings, null, 2));
-      current = settings;
-      return current;
+      return save(settings);
+    },
+
+    /**
+     * Saves only the editor mode and returns the settings. The bank folder is not checked again,
+     * so switching modes works even while it is missing.
+     */
+    setIdeMode(ideMode: IdeMode): Settings {
+      return save(normalize({ ...current, ideMode }));
     },
   };
 }

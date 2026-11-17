@@ -2,15 +2,20 @@ import Editor from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import type { DiscoverResult, QuestionSummary, QuestionView, RunMode, Settings } from "../../shared/api";
-import { attachPyright } from "./lsp/providers";
+import type { DiscoverResult, IdeMode, QuestionSummary, QuestionView, RunMode, Settings } from "../../shared/api";
 import { CUSTOM_STDIN_ID, CustomRun, type CustomState } from "./CustomRun";
 import { Results, type RunState } from "./Results";
+import { applyIdeMode, trackEditor } from "./monaco";
 import { SettingsDialog } from "./SettingsDialog";
 import { shortcutAction } from "./shortcuts";
 import { Statement } from "./Statement";
 import { Stopwatch } from "./Stopwatch";
 import { useDarkMode } from "./useDarkMode";
+
+const IDE_MODE_OPTIONS: { mode: IdeMode; label: string; title: string }[] = [
+  { mode: "full", label: "Full IDE", title: "Pyright completion, hover, signature help and error squiggles" },
+  { mode: "hackerrank", label: "HackerRank-like", title: "Only basic keyword and word completion, as on the real screen" },
+];
 
 const api = window.hackrank;
 const AUTOSAVE_DELAY_MS = 500;
@@ -126,6 +131,24 @@ export function App() {
     const target = stillListedOrFirst(list, current.current);
     if (target?.ok && open?.question.id === target.id) return;
     void openQuestion(target);
+  };
+
+  const ideMode = settings?.ideMode;
+  useEffect(() => {
+    if (ideMode) applyIdeMode(ideMode);
+  }, [ideMode]);
+
+  /** Saves and applies the editor mode; on failure the current mode stays. */
+  const changeIdeMode = async (mode: IdeMode) => {
+    try {
+      const saved = await api.setIdeMode(mode);
+      // Applied at once, not only by the effect: React may batch a quick switch there and back
+      // into no change, while main has stopped the server in between and needs the documents again.
+      applyIdeMode(saved.ideMode);
+      setSettings(saved);
+    } catch (e) {
+      console.error("could not switch the editor mode:", e);
+    }
   };
 
   const saveSettings = async (next: Settings) => {
@@ -286,6 +309,20 @@ export function App() {
         >
           Reset
         </button>
+        <div className="ide-mode" role="group" aria-label="Editor mode">
+          {IDE_MODE_OPTIONS.map(({ mode, label, title }) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={ideMode === mode}
+              onClick={() => void changeIdeMode(mode)}
+              disabled={!settings}
+              title={title}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           className="secondary"
@@ -328,12 +365,11 @@ export function App() {
                     minimap: { enabled: false },
                     automaticLayout: true,
                     tabSize: 4,
-                    // Pyright's completions already include the file's names.
-                    wordBasedSuggestions: "off",
+                    // wordBasedSuggestions follows the editor mode; see applyIdeMode.
                   }}
                   onMount={(instance) => {
                     editorRef.current = instance;
-                    attachPyright(instance, open.question.id);
+                    trackEditor(instance, open.question.id);
                   }}
                   onChange={(value, event) => {
                     const { id } = open.question;
