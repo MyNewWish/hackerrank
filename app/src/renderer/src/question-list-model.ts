@@ -73,3 +73,24 @@ export function moveSelection(view: QuestionListView, selected: string | undefin
   if (index === -1) return ids[0];
   return ids[Math.min(ids.length - 1, Math.max(0, index + delta))];
 }
+
+/** A well-formed question, the only kind test mode opens. */
+export type OkSummary = Extract<QuestionSummary, { ok: true }>;
+
+/** What a key pressed on Home does: select another question, or start testing one. */
+export type HomeKeyAction = { kind: "select"; id: string } | { kind: "start"; summary: OkSummary };
+
+/**
+ * What pressing `key` on Home does to `view`, if anything: up/down move the selection through the
+ * visible questions (see `moveSelection`), and Enter starts the selected question unless it is
+ * malformed.
+ */
+export function homeKeyAction(view: QuestionListView, key: string): HomeKeyAction | undefined {
+  if (key === "ArrowDown" || key === "ArrowUp") {
+    const id = moveSelection(view, view.selectedId, key === "ArrowDown" ? 1 : -1);
+    return id === undefined ? undefined : { kind: "select", id };
+  }
+  const selected = view.visible.find((q) => q.id === view.selectedId);
+  if (key === "Enter" && selected?.ok) return { kind: "start", summary: selected };
+  return undefined;
+}

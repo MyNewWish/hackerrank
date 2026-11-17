@@ -1,18 +1,25 @@
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Difficulty, QuestionSummary } from "../../shared/api";
 import { errorMessage } from "./errors";
-import { isFiltering, moveSelection, NO_FILTER, questionList, type QuestionFilter } from "./question-list-model";
+import {
+  homeKeyAction,
+  isFiltering,
+  NO_FILTER,
+  questionList,
+  type OkSummary,
+  type QuestionFilter,
+} from "./question-list-model";
 
 const api = window.hackrank;
 
-/** A well-formed question, the only kind test mode opens. */
-export type OkSummary = Extract<QuestionSummary, { ok: true }>;
 
 /**
  * The screen the app opens on: the bank's questions in bank order, narrowed by a search box, tag
  * chips and a difficulty filter, with the selected one's details and Start testing. The problem
  * statement is never shown here, so the user cannot read a question before its timer starts.
- * Filter and selection are the app's, so they are kept across test mode.
+ * Filter and selection are the app's, so they are kept across test mode. The search box takes
+ * focus when Home opens; up/down move the selection from it or from a row, and Enter or a
+ * double-click starts testing a well-formed question.
  */
 export function Home(props: {
   questions: QuestionSummary[];
@@ -47,14 +54,26 @@ export function Home(props: {
     onFilterChange({ ...filter, tags });
   };
 
-  const onListKeyDown = (e: KeyboardEvent<HTMLUListElement>) => {
-    const delta = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
-    if (delta === 0) return;
+  /**
+   * Up/down and Enter in the search box or on a row. Focus follows the selection between rows but
+   * stays in the search box, so typing can go on. A focused row is the selected one, so Enter on a
+   * row starts that row.
+   */
+  const onHomeKeyDown = (e: KeyboardEvent<HTMLElement>, from: "search" | "row") => {
+    const onRow = from === "row";
+    const action = homeKeyAction(view, e.key);
+    // Enter on a malformed row is still swallowed, so it does not click (select) it again.
+    if (action === undefined) {
+      if (onRow && e.key === "Enter") e.preventDefault();
+      return;
+    }
     e.preventDefault();
-    const next = moveSelection(view, selectedId, delta);
-    if (next === undefined) return;
-    props.onSelect(next);
-    document.getElementById(rowDomId(next))?.focus();
+    if (action.kind === "start") {
+      props.onStart(action.summary);
+      return;
+    }
+    props.onSelect(action.id);
+    if (onRow) document.getElementById(rowDomId(action.id))?.focus();
   };
 
   return (
@@ -75,6 +94,8 @@ export function Home(props: {
                   className="search"
                   placeholder="Search by id, title or tag"
                   aria-label="Search questions"
+                  autoFocus
+                  onKeyDown={(e) => onHomeKeyDown(e, "search")}
                   value={filter.query}
                   onChange={(e) => onFilterChange({ ...filter, query: e.target.value })}
                 />
@@ -115,7 +136,7 @@ export function Home(props: {
             </div>
             <div className="home-body">
               {view.visible.length > 0 ? (
-                <ul className="question-list" aria-label="Questions" onKeyDown={onListKeyDown}>
+                <ul className="question-list" aria-label="Questions" onKeyDown={(e) => onHomeKeyDown(e, "row")}>
                   {view.visible.map((q) => (
                     <li key={q.id}>
                       <button
@@ -124,6 +145,8 @@ export function Home(props: {
                         className={`question-row${q.id === selectedId ? " selected" : ""}`}
                         aria-pressed={q.id === selectedId}
                         onClick={() => props.onSelect(q.id)}
+                        onFocus={() => props.onSelect(q.id)}
+                        onDoubleClick={() => q.ok && props.onStart(q)}
                       >
                         <span className="question-id">{q.id}</span>
                         {q.ok ? (

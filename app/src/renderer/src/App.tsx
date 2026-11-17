@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DiscoverResult, IdeMode, LspStatus, QuestionSummary, Settings } from "../../shared/api";
 import { errorMessage } from "./errors";
-import { Home, type OkSummary } from "./Home";
-import { NO_FILTER, questionList, type QuestionFilter } from "./question-list-model";
+import { Home } from "./Home";
+import { NO_FILTER, type OkSummary, questionList, type QuestionFilter } from "./question-list-model";
 import { applyIdeMode, setPyrightAvailable } from "./monaco";
 import { SettingsDialog } from "./SettingsDialog";
 import { loadOpening, TestScreen, useRunLock, type Opening, type ResultsTab, type TestScreenHandle } from "./TestScreen";

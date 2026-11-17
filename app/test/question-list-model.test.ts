@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Difficulty, QuestionSummary } from "../src/shared/api";
-import { isFiltering, moveSelection, NO_FILTER, questionList, type QuestionFilter } from "../src/renderer/src/question-list-model";
+import { homeKeyAction, isFiltering, moveSelection, NO_FILTER, questionList, type OkSummary, type QuestionFilter } from "../src/renderer/src/question-list-model";
 
 const BANK: QuestionSummary[] = [
   ok("q1", "Accept Language", "easy", ["stripe", "parsing"]),
@@ -71,6 +71,28 @@ describe("question list model", () => {
     expect(moveSelection(questionList(BANK, { ...NO_FILTER, query: "zzz" }, undefined), undefined, 1)).toBeUndefined();
   });
 
+  test("Enter starts the selected well-formed question", () => {
+    const view = questionList(BANK, NO_FILTER, "q2");
+
+    expect(homeKeyAction(view, "Enter")).toEqual({ kind: "start", summary: ok("q2", "Shipping Cost", "medium", ["stripe", "graphs"]) });
+  });
+
+  test("Enter does nothing for a malformed question or with nothing selected", () => {
+    expect(homeKeyAction(questionList(BANK, NO_FILTER, "q3"), "Enter")).toBeUndefined();
+    expect(homeKeyAction(questionList(BANK, NO_FILTER, undefined), "Enter")).toBeUndefined();
+  });
+
+  test("up/down select the next visible question, stopping at the ends; other keys do nothing", () => {
+    const view = questionList(BANK, { ...NO_FILTER, tags: ["stripe"] }, "q2");
+
+    expect(homeKeyAction(view, "ArrowDown")).toEqual({ kind: "select", id: "q4" });
+    expect(homeKeyAction(view, "ArrowUp")).toEqual({ kind: "select", id: "q1" });
+    expect(homeKeyAction(questionList(BANK, NO_FILTER, "q10"), "ArrowDown")).toEqual({ kind: "select", id: "q10" });
+    expect(homeKeyAction(questionList(BANK, NO_FILTER, undefined), "ArrowDown")).toEqual({ kind: "select", id: "q1" });
+    expect(homeKeyAction(questionList(BANK, { ...NO_FILTER, query: "zzz" }, undefined), "ArrowDown")).toBeUndefined();
+    expect(homeKeyAction(view, "a")).toBeUndefined();
+  });
+
   test("only a non-blank query, a tag or a difficulty counts as filtering", () => {
     expect(isFiltering({ query: "   ", tags: [] })).toBe(false);
     expect(isFiltering({ query: "x", tags: [] })).toBe(true);
@@ -84,6 +106,6 @@ describe("question list model", () => {
   });
 });
 
-function ok(id: string, title: string, difficulty: Difficulty, tags: string[]): QuestionSummary {
+function ok(id: string, title: string, difficulty: Difficulty, tags: string[]): OkSummary {
   return { id, ok: true, title, difficulty, targetMinutes: 30, tags };
 }
