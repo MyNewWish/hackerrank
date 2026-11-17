@@ -17,6 +17,7 @@ export type {
   CompletionItem,
   CompletionList,
   Diagnostic,
+  Difficulty,
   DiscoverResult,
   Hover,
   LspStatus,
