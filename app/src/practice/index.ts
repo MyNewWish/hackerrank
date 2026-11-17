@@ -7,9 +7,10 @@ import {
   solutionPath,
   type DiscoverResult,
   type Question,
-  type RunReport,
+  type RunMode,
+  type TestResult,
 } from "../judge";
-import type { QuestionSummary, QuestionView } from "../shared/api";
+import type { GradedReport, GradedTest, QuestionSummary, QuestionView } from "../shared/api";
 
 export interface PracticeServiceOptions {
   /** The question bank folder; the workspace is its sibling `workspace/` folder. */
@@ -77,7 +78,11 @@ export function createPracticeService({ bankDir, pythonOverride }: PracticeServi
         difficulty,
         targetMinutes,
         statement,
-        parts: parts.map((p) => ({ id: p.id, title: p.title })),
+        parts: parts.map((p) => ({
+          id: p.id,
+          title: p.title,
+          tests: p.tests.map((t) => ({ id: t.id, kind: t.kind })),
+        })),
       };
     },
 
@@ -90,12 +95,33 @@ export function createPracticeService({ bankDir, pythonOverride }: PracticeServi
     writeSolution,
     detectPython,
 
-    /** Saves `code`, then grades it on the sample tests of every part. */
-    async run(id: string, code: string): Promise<RunReport> {
+    /**
+     * Saves `code`, then grades it: `run` = the sample tests of every part, `submit` = every test.
+     * `onResult` hears about each test as soon as it finishes.
+     */
+    async run(
+      id: string,
+      code: string,
+      mode: RunMode = "run",
+      onResult?: (result: GradedTest) => void,
+    ): Promise<GradedReport> {
       writeSolution(id, code);
       const found = await detectPython();
       if (!found.ok) throw new Error(found.error);
-      return runQuestion({ python: found.python, question: question(id), workspaceDir, mode: "run" });
+      const q = question(id);
+      const tests = new Map(q.parts.flatMap((p) => p.tests).map((t) => [t.id, t]));
+      const graded = (result: TestResult): GradedTest => {
+        const test = tests.get(result.testId);
+        return { ...result, input: test?.input ?? "", expected: test?.expected ?? "" };
+      };
+      const report = await runQuestion({
+        python: found.python,
+        question: q,
+        workspaceDir,
+        mode,
+        onResult: onResult && ((r) => onResult(graded(r))),
+      });
+      return { ...report, results: report.results.map(graded) };
     },
   };
 }

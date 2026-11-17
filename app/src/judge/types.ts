@@ -42,3 +42,12 @@ export interface ValidationError {
 export type LoadResult =
   | { ok: true; question: Question }
   | { ok: false; errors: ValidationError[] };
+
+/** `run` = sample tests of every part; `submit` = every test. */
+export type RunMode = "run" | "submit";
+export const RUN_MODES: readonly RunMode[] = ["run", "submit"];
+
+/** Whether a test of `kind` is part of a `mode` run. */
+export function runsTest(mode: RunMode, kind: TestKind): boolean {
+  return mode === "submit" || kind === "sample";
+}

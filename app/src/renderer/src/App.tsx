@@ -1,13 +1,16 @@
 import Editor from "@monaco-editor/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import type { DiscoverResult, QuestionSummary, QuestionView } from "../../shared/api";
+import type { DiscoverResult, QuestionSummary, QuestionView, RunMode } from "../../shared/api";
 import { Results, type RunState } from "./Results";
+import { shortcutAction } from "./shortcuts";
 import { Statement } from "./Statement";
 import { useDarkMode } from "./useDarkMode";
 
 const api = window.hackrank;
 const AUTOSAVE_DELAY_MS = 500;
+const IS_MAC = navigator.userAgent.includes("Macintosh");
+const MOD = IS_MAC ? "⌘" : "Ctrl";
 
 /** The open question with the code that belongs to it, loaded together so they never mismatch. */
 interface OpenQuestion {
@@ -57,19 +60,52 @@ export function App() {
     });
   }, [openQuestion]);
 
-  const onRun = async () => {
-    if (!open) return;
+  /** A run is in progress, possibly for a question the user has since left; one run at a time. */
+  const [running, setRunning] = useState(false);
+  /** Set synchronously, so a shortcut pressed twice in a row cannot start two runs. */
+  const busy = useRef(false);
+  /** Numbers the app's runs, so late results of an earlier run are ignored. */
+  const runSeq = useRef(0);
+
+  /** Saves, then runs the sample tests (`run`) or every test (`submit`), showing results as they finish. */
+  const startRun = async (mode: RunMode) => {
+    if (!open || busy.current) return;
+    busy.current = true;
+    setRunning(true);
     const { id } = open.question;
-    autosave.cancel(); // Run saves the code itself.
-    setRun({ kind: "running" });
-    let next: RunState;
+    const runId = ++runSeq.current;
+    autosave.cancel(); // The run saves the code itself.
+    setRun({ kind: "active", runId, mode, results: [], finished: false });
+    /** Updates the run state only while it still shows this run (the user may have switched question). */
+    const updateThisRun = (next: (s: Extract<RunState, { kind: "active" }>) => RunState) =>
+      setRun((s) => (s.kind === "active" && s.runId === runId ? next(s) : s));
     try {
-      next = { kind: "done", report: await api.run(id, code.current) };
+      const report = await api.run(id, code.current, mode, (result) =>
+        updateThisRun((s) => ({ ...s, results: [...s.results, result] })),
+      );
+      updateThisRun((s) => ({ ...s, results: report.results, finished: true }));
     } catch (e) {
-      next = { kind: "failed", message: errorMessage(e) };
+      updateThisRun(() => ({ kind: "failed", mode, message: errorMessage(e) }));
+    } finally {
+      busy.current = false;
+      setRunning(false);
     }
-    if (current.current === id) setRun(next);
   };
+
+  // Capture phase, so the editor never sees the shortcut (Monaco binds Ctrl+Enter itself).
+  const startRunRef = useRef(startRun);
+  startRunRef.current = startRun;
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const mode = shortcutAction(e, IS_MAC);
+      if (!mode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!e.repeat) void startRunRef.current(mode);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
 
   return (
     <div className="app">
@@ -97,11 +133,21 @@ export function App() {
         </span>
         <button
           type="button"
-          className="primary"
-          onClick={() => void onRun()}
-          disabled={!open || run.kind === "running"}
+          className="secondary"
+          onClick={() => void startRun("run")}
+          disabled={!open || running}
+          title={`Run the sample tests (${MOD}+')`}
         >
           Run
+        </button>
+        <button
+          type="button"
+          className="primary"
+          onClick={() => void startRun("submit")}
+          disabled={!open || running}
+          title={`Run all tests, including hidden ones (${MOD}+Enter)`}
+        >
+          Submit
         </button>
       </header>
       <Group orientation="horizontal" className="panels">
@@ -132,7 +178,11 @@ export function App() {
             </Panel>
             <Separator className="separator horizontal" />
             <Panel minSize="10">
-              <Results state={run} />
+              <Results
+                question={open?.question}
+                state={run}
+                hint={`Run (${MOD}+') checks the sample tests; Submit (${MOD}+Enter) runs every test, including hidden ones.`}
+              />
             </Panel>
           </Group>
         </Panel>

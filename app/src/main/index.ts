@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, session } from "electron";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPracticeService } from "../practice";
-import { CHANNELS } from "../shared/api";
+import { CHANNELS, RUN_MODES, type RunMode } from "../shared/api";
 
 /** Running from the repo, the app folder's sibling `questions/` is the bank. */
 const bankDir = resolve(app.getAppPath(), "..", "questions");
@@ -31,7 +31,15 @@ function registerIpc(): void {
       event.returnValue = (e as Error).message;
     }
   });
-  ipcMain.handle(CHANNELS.run, (_e, id, code) => service.run(requireString(id), requireString(code)));
+  const requireMode = (value: unknown): RunMode => {
+    if (!RUN_MODES.includes(value as RunMode)) throw new TypeError("expected a run mode");
+    return value as RunMode;
+  };
+  ipcMain.handle(CHANNELS.run, (event, runId, id, code, mode) =>
+    service.run(requireString(id), requireString(code), requireMode(mode), (result) => {
+      if (!event.sender.isDestroyed()) event.sender.send(CHANNELS.runResult, runId, result);
+    }),
+  );
   ipcMain.handle(CHANNELS.detectPython, () => service.detectPython());
 }
 

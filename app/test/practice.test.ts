@@ -26,7 +26,7 @@ describe("practice service", () => {
     ]);
   });
 
-  test("loads a question's statement and ordered parts for display", () => {
+  test("loads a question's statement, ordered parts and test list (no test data) for display", () => {
     const service = createPracticeService({ bankDir: bankWith(sumQuestionFiles("q1_sum/")) });
 
     expect(service.loadQuestion("q1")).toEqual({
@@ -36,8 +36,23 @@ describe("practice service", () => {
       targetMinutes: 10,
       statement: "# Sum\n\n## Part 1\n\nAdd.\n\n## Part 2\n\nAdd many.\n",
       parts: [
-        { id: "part1", title: "One pair" },
-        { id: "part2", title: "Many pairs" },
+        {
+          id: "part1",
+          title: "One pair",
+          tests: [
+            { id: "part1/sample/01", kind: "sample" },
+            { id: "part1/hidden/01", kind: "hidden" },
+            { id: "part1/hidden/02", kind: "hidden" },
+          ],
+        },
+        {
+          id: "part2",
+          title: "Many pairs",
+          tests: [
+            { id: "part2/sample/01", kind: "sample" },
+            { id: "part2/hidden/01", kind: "hidden" },
+          ],
+        },
       ],
     });
   });
@@ -88,6 +103,37 @@ describe("practice service", () => {
       ["part2/sample/01", "pass"],
     ]);
     expect([report.summary.passed, report.summary.total]).toEqual([2, 2]);
+  });
+
+  test("Submit grades every test, sample and hidden, part by part", async () => {
+    const service = createPracticeService({ bankDir: bankWith(sumQuestionFiles("q1_sum/")) });
+
+    const report = await service.run("q1", SUM_REFERENCE, "submit");
+
+    expect(report.results.map((r) => [r.testId, r.status])).toEqual([
+      ["part1/sample/01", "pass"],
+      ["part1/hidden/01", "pass"],
+      ["part1/hidden/02", "pass"],
+      ["part2/sample/01", "pass"],
+      ["part2/hidden/01", "pass"],
+    ]);
+    expect([report.summary.passed, report.summary.total]).toEqual([5, 5]);
+  });
+
+  test("each result is reported as its test finishes, with the test's input and expected output", async () => {
+    const service = createPracticeService({ bankDir: bankWith(sumQuestionFiles("q1_sum/")) });
+    const streamed: unknown[] = [];
+
+    const report = await service.run("q1", SUM_REFERENCE, "submit", (r) => streamed.push(r));
+
+    expect(streamed).toEqual(report.results);
+    expect(report.results[1]).toMatchObject({
+      testId: "part1/hidden/01",
+      kind: "hidden",
+      input: "10 20\n",
+      expected: "30\n",
+      stdout: "30\n",
+    });
   });
 
   test("a solution that only handles one pair passes fewer sample tests", async () => {

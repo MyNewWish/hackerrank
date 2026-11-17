@@ -2,13 +2,12 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { join } from "node:path";
 import { outputsMatch } from "./compare";
 import type { PythonInfo } from "./python";
-import type { Question, TestCase, TestKind } from "./types";
+import { runsTest, type Question, type RunMode, type TestCase, type TestKind } from "./types";
 
 const OUTPUT_LIMIT_BYTES = 1024 * 1024;
 const PIPE_DRAIN_GRACE_MS = 1000;
 
-/** `run` = sample tests of every part; `submit` = every test. */
-export type RunMode = "run" | "submit";
+export type { RunMode };
 export type TestStatus = "pass" | "wrong" | "timeout" | "error";
 
 /** What a finished process produced. Output has CRLF normalised to LF. */
@@ -65,7 +64,7 @@ export async function runQuestion(options: RunOptions): Promise<RunReport> {
   const { python, question, workspaceDir, mode, onResult, signal } = options;
   const solution = solutionPath(workspaceDir, question.id);
   const tests = question.parts.flatMap((p) =>
-    p.tests.filter((t) => mode === "submit" || t.kind === "sample"),
+    p.tests.filter((t) => runsTest(mode, t.kind)),
   );
 
   const results: TestResult[] = [];

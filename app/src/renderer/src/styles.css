@@ -10,6 +10,12 @@
   --link: #0969da;
   --pass: #1a7f37;
   --fail: #cf222e;
+  --warn: #9a6700;
+  --selected: #ddf4ff;
+  --diff-removed: #ffebe9;
+  --diff-added: #dafbe1;
+  --diff-mark-removed: #ff818266;
+  --diff-mark-added: #4ac26b66;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
@@ -24,6 +30,12 @@
     --link: #4493f8;
     --pass: #3fb950;
     --fail: #f85149;
+    --warn: #d29922;
+    --selected: #388bfd26;
+    --diff-removed: #f851491a;
+    --diff-added: #2ea04326;
+    --diff-mark-removed: #f8514966;
+    --diff-mark-added: #2ea04366;
   }
 }
 
@@ -46,7 +58,11 @@ button.primary {
   padding: 5px 18px; border: none; border-radius: 6px; cursor: pointer;
   background: var(--accent); color: var(--accent-fg); font-weight: 600;
 }
-button.primary:disabled { opacity: 0.5; cursor: default; }
+button.secondary {
+  padding: 5px 18px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+  background: var(--bg); color: var(--fg); font-weight: 600;
+}
+button.primary:disabled, button.secondary:disabled { opacity: 0.5; cursor: default; }
 
 .panels { flex: 1 1 auto; min-height: 0; }
 .separator { background: var(--border); }
@@ -74,8 +90,52 @@ button.link:hover { text-decoration: underline; }
 .results { height: 100%; overflow: auto; margin: 0; padding: 12px 16px; }
 .placeholder { color: var(--muted); padding: 12px 16px; margin: 0; }
 .results.error { color: var(--fail); white-space: pre-wrap; }
-.summary { font-weight: 600; margin: 0 0 8px; }
+.muted { color: var(--muted); }
+
+.run-results { height: 100%; display: flex; flex-direction: column; }
+.summary-bar {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px;
+  padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel); font-size: 13px;
+}
+.summary { font-weight: 600; font-size: 14px; }
 .summary.pass { color: var(--pass); }
 .summary.fail { color: var(--fail); }
-.part-summaries { margin: 0; padding-left: 18px; color: var(--muted); }
+.summary.running { color: var(--muted); }
+.part-rate { color: var(--muted); }
+.results-body { flex: 1 1 auto; min-height: 0; }
+
+.test-list { height: 100%; overflow: auto; padding: 4px 0; font-size: 13px; outline: none; }
+.test-list:focus-visible { box-shadow: inset 0 0 0 2px var(--link); }
+.part-heading { padding: 6px 12px 2px; font-weight: 600; }
+.test-row { display: flex; align-items: center; gap: 8px; padding: 3px 12px 3px 20px; cursor: pointer; }
+.test-row.selected { background: var(--selected); }
+.duration { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+.status-icon { width: 16px; text-align: center; font-weight: 700; }
+.status-icon.pass { color: var(--pass); }
+.status-icon.wrong { color: var(--fail); }
+.status-icon.timeout { color: var(--warn); }
+.status-icon.error {
+  color: var(--accent-fg); background: var(--fail); border-radius: 50%;
+  width: 15px; height: 15px; line-height: 15px; font-size: 11px;
+}
+.status-icon.pending { color: var(--muted); }
+
+.test-detail { height: 100%; overflow: auto; padding: 8px 12px 16px; font-size: 13px; }
+.detail-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.note { color: var(--warn); margin: 0 0 6px; }
+.section { margin-top: 8px; }
+.section summary { cursor: pointer; font-weight: 600; margin-bottom: 4px; }
+.output {
+  margin: 0; padding: 8px; background: var(--panel); border-radius: 6px; overflow: auto; max-height: 300px;
+  font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; font-size: 12.5px;
+}
+.output.stderr { color: var(--fail); }
+.empty { margin: 0; font-style: italic; }
+.diff-line { white-space: pre; }
+.diff-line.removed { background: var(--diff-removed); }
+.diff-line.added { background: var(--diff-added); }
+.diff-prefix { user-select: none; color: var(--muted); padding-right: 8px; }
+.diff-line.removed .diff-change { background: var(--diff-mark-removed); color: inherit; border-radius: 2px; }
+.diff-line.added .diff-change { background: var(--diff-mark-added); color: inherit; border-radius: 2px; }
 .save-error { color: var(--fail); font-size: 13px; white-space: nowrap; }
