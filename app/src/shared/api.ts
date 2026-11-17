@@ -2,9 +2,29 @@
 import type { DiscoverResult } from "../judge/python";
 import type { ProgramResult, RunReport, TestResult, TestStatus } from "../judge/runner";
 import type { Difficulty, RunMode, TestKind, ValidationError } from "../judge/types";
-import type { CompletionItem, CompletionList, Diagnostic, Position } from "vscode-languageserver-protocol";
+import type {
+  CompletionItem,
+  CompletionList,
+  Diagnostic,
+  Hover,
+  Position,
+  SignatureHelp,
+  SignatureHelpContext,
+} from "vscode-languageserver-protocol";
 
-export type { CompletionItem, CompletionList, Diagnostic, DiscoverResult, Position, RunMode, TestKind, TestStatus };
+export type {
+  CompletionItem,
+  CompletionList,
+  Diagnostic,
+  DiscoverResult,
+  Hover,
+  Position,
+  RunMode,
+  SignatureHelp,
+  SignatureHelpContext,
+  TestKind,
+  TestStatus,
+};
 // Pure and dependency-free, so the renderer plans a run by the same rule the judge runs it by.
 export { RUN_MODES, runsTest } from "../judge/types";
 
@@ -69,6 +89,8 @@ export const CHANNELS = {
   lspClose: "lsp:close",
   lspCompletion: "lsp:completion",
   lspResolveCompletion: "lsp:resolve-completion",
+  lspHover: "lsp:hover",
+  lspSignatureHelp: "lsp:signature-help",
   /** Main → renderer: an open document's full set of diagnostics, as `(id, Diagnostic[])`. */
   lspDiagnostics: "lsp:diagnostics",
 } as const;
@@ -113,6 +135,10 @@ export interface HackrankApi {
   lspCompletion(id: string, position: Position): Promise<CompletionList>;
   /** Adds an item's documentation; the item unchanged if the server is unavailable. */
   lspResolveCompletion(item: CompletionItem): Promise<CompletionItem>;
+  /** What the name at a 0-based LSP position is; null if nothing or the server is unavailable. */
+  lspHover(id: string, position: Position): Promise<Hover | null>;
+  /** The call around a 0-based LSP position; null outside a call or if the server is unavailable. */
+  lspSignatureHelp(id: string, position: Position, context: SignatureHelpContext): Promise<SignatureHelp | null>;
   /**
    * Calls `listener` with a document's full set of diagnostics each time the server publishes
    * them; an empty set clears them. Advisory only. Returns a function that removes the listener.

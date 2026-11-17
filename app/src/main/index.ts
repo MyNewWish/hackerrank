@@ -3,7 +3,8 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPracticeService } from "../practice";
 import { createSettingsStore } from "../settings";
-import { CHANNELS, RUN_MODES, type CompletionItem, type Position, type RunMode, type Settings } from "../shared/api";
+import { CHANNELS, RUN_MODES, type CompletionItem, type Position, type RunMode, type Settings, type SignatureHelpContext } from "../shared/api";
+import { SignatureHelpTriggerKind } from "vscode-languageserver-protocol";
 import { createPyrightHost } from "./lsp/server";
 
 const settings = createSettingsStore({
@@ -88,6 +89,10 @@ function registerIpc(): void {
     pyright.completion(requireString(id), requirePosition(position)),
   );
   ipcMain.handle(CHANNELS.lspResolveCompletion, (_e, item) => pyright.resolveCompletion(requireCompletionItem(item)));
+  ipcMain.handle(CHANNELS.lspHover, (_e, id, position) => pyright.hover(requireString(id), requirePosition(position)));
+  ipcMain.handle(CHANNELS.lspSignatureHelp, (_e, id, position, context) =>
+    pyright.signatureHelp(requireString(id), requirePosition(position), requireSignatureHelpContext(context)),
+  );
 }
 
 function requirePosition(value: unknown): Position {
@@ -101,6 +106,19 @@ function requireCompletionItem(value: unknown): CompletionItem {
     throw new TypeError("expected a completion item");
   }
   return value as CompletionItem;
+}
+
+/** Only the fields pyright reads; a previous help the renderer may hold is not passed on. */
+function requireSignatureHelpContext(value: unknown): SignatureHelpContext {
+  const { triggerKind, triggerCharacter, isRetrigger } = (value ?? {}) as Partial<Record<keyof SignatureHelpContext, unknown>>;
+  const kinds: unknown[] = [
+    SignatureHelpTriggerKind.Invoked,
+    SignatureHelpTriggerKind.TriggerCharacter,
+    SignatureHelpTriggerKind.ContentChange,
+  ];
+  if (!kinds.includes(triggerKind)) throw new TypeError("expected a signature help context");
+  if (triggerCharacter !== undefined && typeof triggerCharacter !== "string") throw new TypeError("expected a trigger character");
+  return { triggerKind: triggerKind as SignatureHelpTriggerKind, triggerCharacter, isRetrigger: isRetrigger === true };
 }
 
 function requireSettings(value: unknown): Settings {

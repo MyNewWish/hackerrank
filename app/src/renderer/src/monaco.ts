@@ -3,7 +3,7 @@ import { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { pythonCompletions, type CompletionKind } from "./completion";
-import { registerPyrightCompletion, showPyrightDiagnostics } from "./lsp/providers";
+import { registerPyrightCompletion, registerPyrightHover, registerPyrightSignatureHelp, showPyrightDiagnostics } from "./lsp/providers";
 
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
 loader.config({ monaco });
@@ -49,9 +49,13 @@ function provideCompletionItems(
 
 // Pyright supplies Python completion; the static provider returns with the HackerRank-like mode.
 const completion = registerPyrightCompletion();
+const hover = registerPyrightHover();
+const signatureHelp = registerPyrightSignatureHelp();
 const diagnostics = showPyrightDiagnostics();
-// In development, a hot reload of this module must not leave the old provider registered too.
+// In development, a hot reload of this module must not leave the old providers registered too.
 import.meta.hot?.dispose(() => {
   completion.dispose();
+  hover.dispose();
+  signatureHelp.dispose();
   diagnostics.dispose();
 });

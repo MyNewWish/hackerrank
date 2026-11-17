@@ -1,7 +1,14 @@
 // Monaco's Python language features from pyright, through the preload API.
 import * as monaco from "monaco-editor";
 import type { CompletionItem } from "../../../shared/api";
-import { toLspPosition, toMonacoCompletion, toMonacoDocumentation, toMonacoMarker } from "./convert";
+import {
+  toLspPosition,
+  toMonacoCompletion,
+  toMonacoDocumentation,
+  toMonacoHover,
+  toMonacoMarker,
+  toMonacoSignatureHelp,
+} from "./convert";
 
 const api = window.hackrank;
 
@@ -90,6 +97,41 @@ export function registerPyrightCompletion(): monaco.IDisposable {
         detail: resolved.detail ?? suggestion.detail,
         documentation: toMonacoDocumentation(resolved.documentation) ?? suggestion.documentation,
       };
+    },
+  });
+}
+
+/** Registers pyright hover for Python; dispose the result to remove it. */
+export function registerPyrightHover(): monaco.IDisposable {
+  return monaco.languages.registerHoverProvider("python", {
+    async provideHover(model, position, token) {
+      const id = documents.get(model);
+      if (id === undefined) return undefined;
+      const hover = await api.lspHover(id, toLspPosition(position)).catch(() => null);
+      if (!hover || token.isCancellationRequested) return undefined;
+      return toMonacoHover(hover);
+    },
+  });
+}
+
+/**
+ * Registers pyright signature help for Python: parameter hints open on `(`, move on `,` and close
+ * on `)`, the server deciding each time which parameter is active. Dispose the result to remove it.
+ */
+export function registerPyrightSignatureHelp(): monaco.IDisposable {
+  return monaco.languages.registerSignatureHelpProvider("python", {
+    signatureHelpTriggerCharacters: ["(", ","],
+    signatureHelpRetriggerCharacters: [")"],
+    async provideSignatureHelp(model, position, token, context) {
+      const id = documents.get(model);
+      if (id === undefined) return undefined;
+      // Monaco's trigger kinds share LSP's values.
+      const { triggerKind, triggerCharacter, isRetrigger } = context;
+      const help = await api
+        .lspSignatureHelp(id, toLspPosition(position), { triggerKind, triggerCharacter, isRetrigger })
+        .catch(() => null);
+      if (!help || help.signatures.length === 0 || token.isCancellationRequested) return undefined;
+      return { value: toMonacoSignatureHelp(help), dispose() {} };
     },
   });
 }

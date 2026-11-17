@@ -5,7 +5,7 @@ import { mkdtempSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Diagnostic } from "vscode-languageserver-protocol";
+import type { Diagnostic, Hover } from "vscode-languageserver-protocol";
 import { startPyright, type PyrightSession } from "../src/lsp/pyright";
 
 const serverEntry = createRequire(import.meta.url).resolve("pyright/langserver.index.js");
@@ -101,4 +101,43 @@ test("a call with the wrong arguments yields a diagnostic on the call", async ()
   session.open("d3", "len(1, 2)\n");
   const diagnostics = await published;
   expect(diagnostics.some((d) => d.range.start.line === 0)).toBe(true);
+}, 30_000);
+
+/** A hover's contents as one string, whatever form the server sent them in. */
+function hoverText(contents: Hover["contents"]): string {
+  const parts = Array.isArray(contents) ? contents : [contents];
+  return parts.map((p) => (typeof p === "string" ? p : p.value)).join("\n");
+}
+
+test("hover on len mentions its signature", async () => {
+  session.open("h1", "len([1, 2])\n");
+  const hover = await session.hover("h1", { line: 0, character: 1 });
+  expect(hover).not.toBeNull();
+  expect(hoverText(hover!.contents)).toContain("len(");
+}, 30_000);
+
+test("hover on a stdlib name and on the user's own function shows its docstring", async () => {
+  session.open("h2", 'import math\ndef mine(a: int) -> str:\n    """Doc here."""\n    return ""\nmine(1)\nmath.sqrt(2)\n');
+  const mine = await session.hover("h2", { line: 4, character: 1 });
+  expect(hoverText(mine!.contents)).toContain("def mine(a: int) -> str");
+  expect(hoverText(mine!.contents)).toContain("Doc here.");
+  const sqrt = await session.hover("h2", { line: 5, character: 6 });
+  expect(hoverText(sqrt!.contents)).toContain("def sqrt(");
+}, 30_000);
+
+test("signature help inside print( returns a signature", async () => {
+  session.open("s1", "print(");
+  const help = await session.signatureHelp("s1", { line: 0, character: 6 }, { triggerKind: 2, triggerCharacter: "(", isRetrigger: false });
+  expect(help?.signatures.length).toBeGreaterThan(0);
+  // Pyright's labels are the parameter list and return type, without the name.
+  expect(help!.signatures[0]!.label).toContain("*values");
+}, 30_000);
+
+test("signature help tracks the active parameter after a comma", async () => {
+  session.open("s2", "divmod(7, ");
+  const help = await session.signatureHelp("s2", { line: 0, character: 10 }, { triggerKind: 2, triggerCharacter: ",", isRetrigger: false });
+  expect(help).not.toBeNull();
+  const signature = help!.signatures[help!.activeSignature ?? 0]!;
+  // A signature's own active parameter overrides the top-level one, which pyright sets differently.
+  expect(signature.activeParameter).toBe(1);
 }, 30_000);

@@ -5,9 +5,12 @@ import {
   toLspPosition,
   toLspRange,
   toMonacoCompletion,
+  toMonacoHover,
+  toMonacoHoverContents,
   toMonacoMarker,
   toMonacoPosition,
   toMonacoRange,
+  toMonacoSignatureHelp,
 } from "../src/renderer/src/lsp/convert";
 
 test("LSP positions are 0-based, Monaco's 1-based", () => {
@@ -146,4 +149,71 @@ test("unknown diagnostic tags are dropped", () => {
   const range = { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } };
   expect(toMonacoMarker({ range, message: "m", tags: [2, 7 as 1] }).tagNames).toEqual(["Deprecated"]);
   expect(toMonacoMarker({ range, message: "m" }).tagNames).toEqual([]);
+});
+
+test("markdown MarkupContent passes through as Monaco markdown", () => {
+  const value = "```python\n(function) def len(obj: Sized, /) -> int\n```\n---\nReturn the number of items.";
+  expect(toMonacoHoverContents({ kind: "markdown", value })).toEqual([{ value }]);
+});
+
+test("plaintext MarkupContent is escaped so it shows literally", () => {
+  expect(toMonacoHoverContents({ kind: "plaintext", value: "a_b *c* [d]" })).toEqual([{ value: String.raw`a\_b \*c\* \[d\]` }]);
+});
+
+test("MarkedStrings: a string is markdown, a language-value pair is a code block", () => {
+  expect(toMonacoHoverContents(["**bold**", { language: "python", value: "x: int" }])).toEqual([
+    { value: "**bold**" },
+    { value: "```python\nx: int\n```" },
+  ]);
+  expect(toMonacoHoverContents("just text")).toEqual([{ value: "just text" }]);
+});
+
+test("empty hover contents are dropped", () => {
+  expect(toMonacoHoverContents(["", { kind: "markdown", value: "" } as never])).toEqual([]);
+});
+
+test("a hover converts its contents and range", () => {
+  const hover = toMonacoHover({
+    contents: { kind: "markdown", value: "doc" },
+    range: { start: { line: 3, character: 0 }, end: { line: 3, character: 4 } },
+  });
+  expect(hover).toEqual({
+    contents: [{ value: "doc" }],
+    range: { startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 5 },
+  });
+  expect(toMonacoHover({ contents: [] })).toBeUndefined();
+});
+
+test("signature help keeps labels, offsets and each signature's active parameter", () => {
+  const help = toMonacoSignatureHelp({
+    signatures: [
+      {
+        label: "(x: int, y: int, /) -> int",
+        documentation: { kind: "markdown", value: "Divides." },
+        parameters: [{ label: [1, 7] }, { label: [9, 15], documentation: "the divisor" }],
+        activeParameter: 1,
+      },
+    ],
+    activeSignature: 0,
+    activeParameter: 3,
+  });
+  expect(help).toEqual({
+    signatures: [
+      {
+        label: "(x: int, y: int, /) -> int",
+        documentation: { value: "Divides." },
+        parameters: [{ label: [1, 7], documentation: undefined }, { label: [9, 15], documentation: "the divisor" }],
+        activeParameter: 1,
+      },
+    ],
+    activeSignature: 0,
+    activeParameter: 1,
+  });
+});
+
+test("signature help defaults missing active indexes to 0", () => {
+  const help = toMonacoSignatureHelp({ signatures: [{ label: "()" }] });
+  expect(help.activeSignature).toBe(0);
+  expect(help.activeParameter).toBe(0);
+  expect(help.signatures[0]!.parameters).toEqual([]);
 });

@@ -35,6 +35,8 @@ const api: HackrankApi = {
   lspClose: (id) => ipcRenderer.send(CHANNELS.lspClose, id),
   lspCompletion: (id, position) => ipcRenderer.invoke(CHANNELS.lspCompletion, id, position),
   lspResolveCompletion: (item) => ipcRenderer.invoke(CHANNELS.lspResolveCompletion, item),
+  lspHover: (id, position) => ipcRenderer.invoke(CHANNELS.lspHover, id, position),
+  lspSignatureHelp: (id, position, context) => ipcRenderer.invoke(CHANNELS.lspSignatureHelp, id, position, context),
   onLspDiagnostics: (listener) => {
     const relay = (_e: IpcRendererEvent, id: string, diagnostics: Diagnostic[]) => listener(id, diagnostics);
     ipcRenderer.on(CHANNELS.lspDiagnostics, relay);

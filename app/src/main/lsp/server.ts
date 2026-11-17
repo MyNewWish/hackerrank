@@ -77,6 +77,16 @@ export function createPyrightHost(options: {
       if (!s) return item;
       return s.resolveCompletion(item).catch(() => item);
     },
+    async hover(id, position) {
+      const s = await session;
+      if (!s) return null;
+      return s.hover(id, position).catch(() => null);
+    },
+    async signatureHelp(id, position, context) {
+      const s = await session;
+      if (!s) return null;
+      return s.signatureHelp(id, position, context).catch(() => null);
+    },
     onDiagnostics: diagnosticsListeners.add,
     dispose() {
       disposed = true;

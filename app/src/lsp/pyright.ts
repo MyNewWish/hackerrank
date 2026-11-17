@@ -16,9 +16,14 @@ import type {
   CompletionParams,
   ConfigurationParams,
   Diagnostic,
+  Hover,
+  HoverParams,
   InitializeParams,
   Position,
   PublishDiagnosticsParams,
+  SignatureHelp,
+  SignatureHelpContext,
+  SignatureHelpParams,
 } from "vscode-languageserver-protocol";
 import { createListeners } from "./listeners";
 
@@ -56,6 +61,10 @@ export interface PyrightSession {
   completion(id: string, position: Position): Promise<CompletionList>;
   /** Fills in an item's documentation. */
   resolveCompletion(item: CompletionItem): Promise<CompletionItem>;
+  /** What the name at a 0-based position is; null if nothing, or the document isn't open. */
+  hover(id: string, position: Position): Promise<Hover | null>;
+  /** The call around a 0-based position and its active parameter; null outside a call. */
+  signatureHelp(id: string, position: Position, context: SignatureHelpContext): Promise<SignatureHelp | null>;
   /**
    * Calls `listener` with an open document's full set of diagnostics each time the server
    * publishes them; never for a closed document or an outdated version. Returns a function that
@@ -118,6 +127,15 @@ export async function startPyright(options: PyrightOptions): Promise<PyrightSess
             labelDetailsSupport: true,
             documentationFormat: ["markdown", "plaintext"],
             resolveSupport: { properties: ["documentation", "detail"] },
+          },
+          contextSupport: true,
+        },
+        hover: { contentFormat: ["markdown", "plaintext"] },
+        signatureHelp: {
+          signatureInformation: {
+            documentationFormat: ["markdown", "plaintext"],
+            parameterInformation: { labelOffsetSupport: true },
+            activeParameterSupport: true,
           },
           contextSupport: true,
         },
@@ -187,6 +205,16 @@ export async function startPyright(options: PyrightOptions): Promise<PyrightSess
     async resolveCompletion(item) {
       if (!alive) return item;
       return connection.sendRequest<CompletionItem>("completionItem/resolve", item);
+    },
+    async hover(id, position) {
+      if (!alive || !versions.has(id)) return null;
+      const params: HoverParams = { textDocument: { uri: uriOf(id) }, position };
+      return connection.sendRequest<Hover | null>("textDocument/hover", params);
+    },
+    async signatureHelp(id, position, context) {
+      if (!alive || !versions.has(id)) return null;
+      const params: SignatureHelpParams = { textDocument: { uri: uriOf(id) }, position, context };
+      return connection.sendRequest<SignatureHelp | null>("textDocument/signatureHelp", params);
     },
     onDiagnostics: diagnosticsListeners.add,
     onExit(listener) {

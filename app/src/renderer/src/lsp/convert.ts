@@ -1,7 +1,16 @@
 // Pure LSP → Monaco conversions. Only types come from Monaco, so this runs under `bun test`;
 // enum values are named here and looked up in `providers.ts`.
 import type { editor, IMarkdownString, IPosition, IRange, languages, MarkerSeverity, MarkerTag } from "monaco-editor";
-import type { CompletionItem, Diagnostic, MarkupContent, Position, Range } from "vscode-languageserver-protocol";
+import type {
+  CompletionItem,
+  Diagnostic,
+  Hover,
+  MarkedString,
+  MarkupContent,
+  Position,
+  Range,
+  SignatureHelp,
+} from "vscode-languageserver-protocol";
 
 export type CompletionKindName = keyof typeof languages.CompletionItemKind;
 
@@ -103,5 +112,59 @@ export function toMonacoMarker(diagnostic: Diagnostic): MonacoMarker {
     source: diagnostic.source,
     code: diagnostic.code === undefined ? undefined : String(diagnostic.code),
     tagNames: (diagnostic.tags ?? []).flatMap((tag) => LSP_TAGS[tag - 1] ?? []),
+  };
+}
+
+/** Backslash-escapes markdown's special characters, so plain text shows as written. */
+function escapeMarkdown(text: string): string {
+  return text.replace(/[\\`*_{}[\]()#+\-.!|<>~]/g, "\\$&");
+}
+
+/**
+ * Hover contents as Monaco markdown. A `MarkupContent` is markdown or plain text; a
+ * `MarkedString` is markdown, or a code block when it names a language. Empty parts are dropped.
+ */
+export function toMonacoHoverContents(contents: Hover["contents"]): IMarkdownString[] {
+  const parts: (MarkupContent | MarkedString)[] = Array.isArray(contents) ? contents : [contents];
+  return parts.flatMap((part) => {
+    const value =
+      typeof part === "string"
+        ? part
+        : "kind" in part
+          ? part.kind === "markdown"
+            ? part.value
+            : escapeMarkdown(part.value)
+          : "```" + part.language + "\n" + part.value + "\n```";
+    return value ? [{ value }] : [];
+  });
+}
+
+/** Undefined when there is nothing to show. */
+export function toMonacoHover(hover: Hover): languages.Hover | undefined {
+  const contents = toMonacoHoverContents(hover.contents);
+  if (contents.length === 0) return undefined;
+  return { contents, ...(hover.range && { range: toMonacoRange(hover.range) }) };
+}
+
+/**
+ * Parameter labels stay as given: a substring of the signature's label, or its offsets in it.
+ * A signature's own active parameter overrides the top-level one, which pyright sets differently;
+ * the active signature's is copied to the top level too, for a reader that looks only there.
+ */
+export function toMonacoSignatureHelp(help: SignatureHelp): languages.SignatureHelp {
+  const activeSignature = help.activeSignature ?? 0;
+  const ownActive = help.signatures[activeSignature]?.activeParameter;
+  return {
+    signatures: help.signatures.map((signature) => ({
+      label: signature.label,
+      documentation: toMonacoDocumentation(signature.documentation),
+      parameters: (signature.parameters ?? []).map((parameter) => ({
+        label: parameter.label,
+        documentation: toMonacoDocumentation(parameter.documentation),
+      })),
+      ...(typeof signature.activeParameter === "number" && { activeParameter: signature.activeParameter }),
+    })),
+    activeSignature,
+    activeParameter: typeof ownActive === "number" ? ownActive : (help.activeParameter ?? 0),
   };
 }
