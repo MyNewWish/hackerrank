@@ -13,8 +13,8 @@ import { Stopwatch } from "./Stopwatch";
 import { useDarkMode } from "./useDarkMode";
 
 const IDE_MODE_OPTIONS: { mode: IdeMode; label: string; title: string }[] = [
-  { mode: "full", label: "Full IDE", title: "Pyright completion, hover, signature help and error squiggles" },
   { mode: "hackerrank", label: "HackerRank-like", title: "Only basic keyword and word completion, as on the real screen" },
+  { mode: "full", label: "Full IDE", title: "Pyright completion, hover, signature help and error squiggles" },
 ];
 
 const api = window.hackrank;

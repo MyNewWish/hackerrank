@@ -11,7 +11,7 @@ keyword completion.
 ## Decisions
 | # | Decision | Choice |
 |---|---|---|
-| 1 | Realism | A setting with two modes: **Full IDE** (default, uses Pyright) and **HackerRank-like** (Monaco's built-in word completion only). A lock for timed mocks can come later. |
+| 1 | Realism | A setting with two modes: **HackerRank-like** (default, Monaco's built-in word completion only) and **Full IDE** (uses Pyright). A lock for timed mocks can come later. |
 | 2 | Features | **In:** completion, signature help, hover, diagnostics. **Out:** rename, go-to-def, references, code actions, semantic tokens, formatting. |
 | 3 | Server | The official npm `pyright` package (`langserver.index.js`). It speaks LSP, so swapping in basedpyright later is trivial. Pylance can't be used (license). |
 | 4 | Where it runs | In Electron main, via `utilityProcess.fork` on pyright's language server with `--stdio`. LSP messages pass to the renderer over IPC. |
@@ -74,7 +74,7 @@ lsp/convert.ts (pure, unit-tested)      settings store from #9 (+ ideMode)
   - hover on `len` → contents mention `len(`.
   - a syntax error → a diagnostic; fixing it via `didChange` → the diagnostics clear.
 - `test/lsp-convert.test.ts` (unit): position/range round-trip, kind and severity tables, markdown passthrough.
-- Settings: `ideMode` defaults to `full` when missing or invalid, and survives a restart.
+- Settings: `ideMode` defaults to `hackerrank` when missing or invalid, and survives a restart.
 - Manual: toggle modes, switch questions (no leaked markers), kill the server process → status note, editor still works.
 
 ## Out of scope

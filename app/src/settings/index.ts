@@ -11,14 +11,14 @@ export interface SettingsStoreOptions {
 
 /**
  * The app's settings, persisted as JSON in `file` so they survive a restart. A missing or
- * unreadable file means the defaults: the default bank, auto-detected Python and the full IDE.
+ * unreadable file means the defaults: the default bank, auto-detected Python and the HackerRank-like editor.
  */
 export function createSettingsStore({ file, defaultBankDir }: SettingsStoreOptions) {
   /** Trims, and turns blanks and unknown editor modes into the defaults. */
   const normalize = (s: Partial<Settings>): Settings => {
     const bankDir = typeof s.bankDir === "string" ? s.bankDir.trim() : "";
     const pythonPath = typeof s.pythonPath === "string" ? s.pythonPath.trim() : "";
-    const ideMode = IDE_MODES.includes(s.ideMode as IdeMode) ? (s.ideMode as IdeMode) : "full";
+    const ideMode = IDE_MODES.includes(s.ideMode as IdeMode) ? (s.ideMode as IdeMode) : "hackerrank";
     return { bankDir: bankDir ? normalizePath(bankDir) : defaultBankDir, pythonPath, ideMode };
   };
 

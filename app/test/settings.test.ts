@@ -15,7 +15,7 @@ describe("settings store", () => {
   test("starts with the default bank and auto-detected Python when nothing is saved", () => {
     const { open, defaultBankDir } = setup();
 
-    expect(open().get()).toEqual({ bankDir: defaultBankDir, pythonPath: "", ideMode: "full" });
+    expect(open().get()).toEqual({ bankDir: defaultBankDir, pythonPath: "", ideMode: "hackerrank" });
   });
 
   test("saved settings survive reopening the store (an app restart)", () => {
@@ -58,23 +58,23 @@ describe("settings store", () => {
     mkdirSync(join(file, ".."), { recursive: true });
     writeFileSync(file, "{ not json");
 
-    expect(open().get()).toEqual({ bankDir: defaultBankDir, pythonPath: "", ideMode: "full" });
+    expect(open().get()).toEqual({ bankDir: defaultBankDir, pythonPath: "", ideMode: "hackerrank" });
   });
 
   test("the editor mode survives reopening the store (an app restart)", () => {
     const { open } = setup();
 
-    expect(open().setIdeMode("hackerrank").ideMode).toBe("hackerrank");
+    expect(open().setIdeMode("full").ideMode).toBe("full");
 
-    expect(open().get().ideMode).toBe("hackerrank");
+    expect(open().get().ideMode).toBe("full");
   });
 
-  test("an unknown saved editor mode falls back to the full IDE", () => {
+  test("an unknown saved editor mode falls back to the HackerRank-like default", () => {
     const { open, file } = setup();
     mkdirSync(join(file, ".."), { recursive: true });
     writeFileSync(file, JSON.stringify({ ideMode: "vim" }));
 
-    expect(open().get().ideMode).toBe("full");
+    expect(open().get().ideMode).toBe("hackerrank");
   });
 
   test("switching the editor mode works even when the saved bank folder has gone", () => {
