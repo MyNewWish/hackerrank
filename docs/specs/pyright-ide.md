@@ -17,7 +17,7 @@ keyword completion.
 | 4 | Where it runs | In Electron main, via `utilityProcess.fork` on pyright's language server with `--stdio`. LSP messages pass to the renderer over IPC. |
 | 5 | Client | A hand-written bridge, **not** `monaco-languageclient` (that would mean replacing `monaco-editor` with `@codingame/monaco-vscode-api`). Message types come from `vscode-languageserver-protocol`. |
 | 6 | Environment | Bundled typeshed stdlib stubs only. `pythonVersion` is set from `discoverPython()`. No site-packages. |
-| 7 | Size | About 20 MB more is acceptable. `pyright` must be unpacked from asar (`asarUnpack`) so the server can read the typeshed files. |
+| 7 | Size | About 30 MB more is acceptable (29 MB measured with pyright 1.1.414). `pyright` must be unpacked from asar (`asarUnpack`) so the server can read the typeshed files. |
 | 8 | Setting storage | An `ideMode: "full" \| "hackerrank"` key in the settings store that #9 builds (`userData`, main-owned, get/set over IPC). The toggle sits in the toolbar next to Run/Submit. |
 | 9 | Strictness | `typeCheckingMode: "basic"`. |
 | 10 | Diagnostics impact | Advisory only. Run/Submit never warn or block. |
@@ -65,7 +65,7 @@ lsp/convert.ts (pure, unit-tested)      settings store from #9 (+ ideMode)
 - Keep main's bundle from inlining pyright (mark it `external` in `electron.vite.config.ts`).
 - `asarUnpack: ["node_modules/pyright/**"]` sits under `build` in `app/package.json`, for the
   electron-builder setup to pick up. Measured with pyright 1.1.414: the unpacked package is about
-  29 MB on disk, 23 MB of it the typeshed stubs.
+  29 MB on disk, 23 MB of it the typeshed stubs; accepted over the original ~20 MB estimate.
 
 ## Tests
 - `test/lsp.test.ts` (integration): start the real server and open a document. Then assert that:
