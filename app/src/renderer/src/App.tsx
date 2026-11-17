@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DiscoverResult, IdeMode, LspStatus, QuestionSummary, Settings } from "../../shared/api";
 import { errorMessage } from "./errors";
 import { Home, type OkSummary } from "./Home";
+import { NO_FILTER, questionList, type QuestionFilter } from "./question-list-model";
 import { applyIdeMode, setPyrightAvailable } from "./monaco";
 import { SettingsDialog } from "./SettingsDialog";
 import { loadOpening, TestScreen, useRunLock, type Opening, type ResultsTab, type TestScreenHandle } from "./TestScreen";
@@ -30,6 +31,8 @@ export function App() {
   const revealed = useRef(new Set<string>());
   /** The question selected on Home, kept across test mode; may be a malformed one. */
   const [selectedId, setSelectedId] = useState<string>();
+  /** Home's search, tag chips and difficulty, kept across test mode but not across restarts. */
+  const [filter, setFilter] = useState<QuestionFilter>(NO_FILTER);
   const [screen, setScreen] = useState<Screen>({ kind: "home" });
   /** Numbers attempts, so each Start testing mounts a fresh test screen. */
   const attemptSeq = useRef(0);
@@ -170,6 +173,8 @@ export function App() {
     if (saved.bankDir !== settings?.bankDir) {
       // Question ids now name another bank's questions.
       setSelectedId(undefined);
+      // Its tags may not exist in the new bank.
+      setFilter(NO_FILTER);
       // Now, not when the new scan lands.
       clearBank();
       setCustomInputs({});
@@ -187,6 +192,12 @@ export function App() {
           questions={questions}
           bankError={bankError}
           bankEmpty={bankScanned && questions.length === 0}
+          filter={filter}
+          onFilterChange={(next) => {
+            setFilter(next);
+            // A question the new filter hides is no longer selected.
+            setSelectedId(questionList(questions, next, selectedId).selectedId);
+          }}
           selectedId={selectedId}
           onSelect={setSelectedId}
           onStart={(summary) => void startTesting(summary)}

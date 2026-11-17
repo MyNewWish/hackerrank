@@ -2,11 +2,15 @@ import type { Difficulty, QuestionSummary } from "../../shared/api";
 
 /** What Home narrows the bank to: a search query, tags that must all be present, and a difficulty. */
 export interface QuestionFilter {
+  /** Searched in each question's id, title and tags, trimmed and ignoring case. */
   query: string;
+  /** Tags a question must all have. */
   tags: string[];
+  /** The only difficulty shown; none shows every difficulty. */
   difficulty?: Difficulty;
 }
 
+/** Shows every question. */
 export const NO_FILTER: QuestionFilter = { query: "", tags: [] };
 
 /** The bank as Home lists it under a filter. */

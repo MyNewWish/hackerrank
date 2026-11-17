@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
-import type { QuestionSummary } from "../../shared/api";
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
+import type { Difficulty, QuestionSummary } from "../../shared/api";
 import { errorMessage } from "./errors";
+import { isFiltering, moveSelection, NO_FILTER, questionList, type QuestionFilter } from "./question-list-model";
 
 const api = window.hackrank;
 
@@ -8,9 +9,10 @@ const api = window.hackrank;
 export type OkSummary = Extract<QuestionSummary, { ok: true }>;
 
 /**
- * The screen the app opens on: every question in bank order, the selected one's details and
- * Start testing. The problem statement is never shown here, so the user cannot read a question
- * before its timer starts. Selection is the app's, so it is kept across test mode.
+ * The screen the app opens on: the bank's questions in bank order, narrowed by a search box, tag
+ * chips and a difficulty filter, with the selected one's details and Start testing. The problem
+ * statement is never shown here, so the user cannot read a question before its timer starts.
+ * Filter and selection are the app's, so they are kept across test mode.
  */
 export function Home(props: {
   questions: QuestionSummary[];
@@ -18,7 +20,11 @@ export function Home(props: {
   bankError: string | undefined;
   /** The bank has been listed and has no questions. */
   bankEmpty: boolean;
-  /** The selected question; none, or one no longer listed, shows no details. */
+  /** What the list is narrowed to; the app keeps it across test mode. */
+  filter: QuestionFilter;
+  /** Sets the filter; the app clears the selection if the new filter hides it. */
+  onFilterChange: (filter: QuestionFilter) => void;
+  /** The selected question; none, or one not visible, shows no details. */
   selectedId: string | undefined;
   onSelect: (id: string) => void;
   /** Opens test mode for the selected question. */
@@ -28,8 +34,28 @@ export function Home(props: {
   /** Settings is reachable from Home only. */
   settingsButton: ReactNode;
 }) {
-  const { questions, selectedId } = props;
-  const selected = questions.find((q) => q.id === selectedId);
+  const { questions, filter, onFilterChange } = props;
+  const view = questionList(questions, filter, props.selectedId);
+  const { selectedId } = view;
+  const selected = view.visible.find((q) => q.id === selectedId);
+  // A selected tag gone from the bank after a rescan keeps its chip, so it can still be turned off.
+  const chips = [...new Set([...view.tags, ...filter.tags])].sort();
+  const clear = () => onFilterChange(NO_FILTER);
+
+  const toggleTag = (tag: string) => {
+    const tags = filter.tags.includes(tag) ? filter.tags.filter((t) => t !== tag) : [...filter.tags, tag];
+    onFilterChange({ ...filter, tags });
+  };
+
+  const onListKeyDown = (e: KeyboardEvent<HTMLUListElement>) => {
+    const delta = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
+    if (delta === 0) return;
+    e.preventDefault();
+    const next = moveSelection(view, selectedId, delta);
+    if (next === undefined) return;
+    props.onSelect(next);
+    document.getElementById(rowDomId(next))?.focus();
+  };
 
   return (
     <>
@@ -41,41 +67,129 @@ export function Home(props: {
       <div className="home">
         <BankMessage bankError={props.bankError} empty={props.bankEmpty} />
         {questions.length > 0 && (
-          <div className="home-body">
-            <ul className="question-list" aria-label="Questions">
-              {questions.map((q) => (
-                <li key={q.id}>
-                  <button
-                    type="button"
-                    className={`question-row${q.id === selectedId ? " selected" : ""}`}
-                    aria-pressed={q.id === selectedId}
-                    onClick={() => props.onSelect(q.id)}
-                  >
-                    <span className="question-id">{q.id}</span>
-                    {q.ok ? (
-                      <>
-                        <span className="question-title">{q.title}</span>
-                        <span className={`difficulty ${q.difficulty}`}>{q.difficulty}</span>
-                        <span className="muted">{q.targetMinutes} min</span>
-                      </>
-                    ) : (
-                      <span className="question-title malformed-name">⚠ {q.folder} is malformed</span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <section className="question-details" aria-label="Selected question">
-              {selected ? (
-                <Details key={selected.id} summary={selected} onStart={props.onStart} starting={props.starting} />
-              ) : (
-                <p className="placeholder">Select a question to see its details.</p>
+          <>
+            <div className="filters" role="search">
+              <div className="filter-row">
+                <input
+                  type="search"
+                  className="search"
+                  placeholder="Search by id, title or tag"
+                  aria-label="Search questions"
+                  value={filter.query}
+                  onChange={(e) => onFilterChange({ ...filter, query: e.target.value })}
+                />
+                <div className="ide-mode" role="group" aria-label="Difficulty">
+                  {DIFFICULTY_OPTIONS.map(({ value, label }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      aria-pressed={filter.difficulty === value}
+                      onClick={() => onFilterChange({ ...filter, difficulty: value })}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <span className="muted count" aria-live="polite">
+                  {view.visible.length} of {view.total} {view.total === 1 ? "question" : "questions"}
+                </span>
+                <button type="button" className="link" onClick={clear} disabled={!isFiltering(filter)}>
+                  Clear filters
+                </button>
+              </div>
+              {chips.length > 0 && (
+                <div className="tag-chips" role="group" aria-label="Tags">
+                  {chips.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      className="chip"
+                      aria-pressed={filter.tags.includes(tag)}
+                      onClick={() => toggleTag(tag)}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
               )}
-            </section>
-          </div>
+            </div>
+            <div className="home-body">
+              {view.visible.length > 0 ? (
+                <ul className="question-list" aria-label="Questions" onKeyDown={onListKeyDown}>
+                  {view.visible.map((q) => (
+                    <li key={q.id}>
+                      <button
+                        type="button"
+                        id={rowDomId(q.id)}
+                        className={`question-row${q.id === selectedId ? " selected" : ""}`}
+                        aria-pressed={q.id === selectedId}
+                        onClick={() => props.onSelect(q.id)}
+                      >
+                        <span className="question-id">{q.id}</span>
+                        {q.ok ? (
+                          <>
+                            <span className="question-title">{q.title}</span>
+                            <span className={`difficulty ${q.difficulty}`}>{q.difficulty}</span>
+                            <span className="muted">{q.targetMinutes} min</span>
+                            <Tags tags={q.tags} />
+                          </>
+                        ) : (
+                          <span className="question-title malformed-name">⚠ {q.folder} is malformed</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="question-list">
+                  <p className="placeholder">
+                    No questions match. Try a shorter search, fewer tags or another difficulty, or{" "}
+                    <button type="button" className="link" onClick={clear}>
+                      clear all filters
+                    </button>
+                    .
+                  </p>
+                </div>
+              )}
+              <section className="question-details" aria-label="Selected question">
+                {selected ? (
+                  <Details key={selected.id} summary={selected} onStart={props.onStart} starting={props.starting} />
+                ) : (
+                  <p className="placeholder">Select a question to see its details.</p>
+                )}
+              </section>
+            </div>
+          </>
         )}
       </div>
     </>
+  );
+}
+
+/** The difficulty filter's buttons; Any shows every difficulty. */
+const DIFFICULTY_OPTIONS: { value: Difficulty | undefined; label: string }[] = [
+  { value: undefined, label: "Any" },
+  { value: "easy", label: "Easy" },
+  { value: "medium", label: "Medium" },
+  { value: "hard", label: "Hard" },
+];
+
+/** The DOM id of question `id`'s row, so arrow keys can focus it. */
+function rowDomId(id: string): string {
+  return `question-row-${id}`;
+}
+
+/** A question's tags, as small labels. */
+function Tags({ tags }: { tags: string[] }) {
+  if (tags.length === 0) return null;
+  return (
+    <span className="tags">
+      {tags.map((t) => (
+        <span key={t} className="tag">
+          {t}
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -104,7 +218,7 @@ function BankMessage({ bankError, empty }: { bankError: string | undefined; empt
 }
 
 /**
- * The selected question's title, difficulty, target time and number of parts, with Start
+ * The selected question's title, difficulty, target time, tags and number of parts, with Start
  * testing; for a malformed one, its validation errors instead.
  */
 function Details(props: {
@@ -139,6 +253,8 @@ function Details(props: {
         <dd className={`difficulty ${summary.difficulty}`}>{summary.difficulty}</dd>
         <dt>Target time</dt>
         <dd>{summary.targetMinutes} min</dd>
+        <dt>Tags</dt>
+        <dd>{summary.tags.length > 0 ? <Tags tags={summary.tags} /> : <span className="muted">none</span>}</dd>
         <dt>Parts</dt>
         <dd>
           <PartsValue parts={parts} />

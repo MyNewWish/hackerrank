@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { QuestionSummary } from "../src/shared/api";
+import type { Difficulty, QuestionSummary } from "../src/shared/api";
 import { isFiltering, moveSelection, NO_FILTER, questionList, type QuestionFilter } from "../src/renderer/src/question-list-model";
 
 const BANK: QuestionSummary[] = [
@@ -84,6 +84,6 @@ describe("question list model", () => {
   });
 });
 
-function ok(id: string, title: string, difficulty: "easy" | "medium" | "hard", tags: string[]): QuestionSummary {
+function ok(id: string, title: string, difficulty: Difficulty, tags: string[]): QuestionSummary {
   return { id, ok: true, title, difficulty, targetMinutes: 30, tags };
 }
