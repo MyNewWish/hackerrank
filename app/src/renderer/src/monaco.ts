@@ -60,8 +60,12 @@ interface TrackedEditor {
   pyright?: monaco.IDisposable;
 }
 const editors = new Map<monaco.editor.IStandaloneCodeEditor, TrackedEditor>();
-/** The mode's providers; none until the saved mode is known. */
+/** The saved mode; none until it is known. */
 let mode: IdeMode | undefined;
+/** False once pyright's server is unavailable: the full IDE then falls back to `hackerrank`. */
+let pyrightAvailable = true;
+/** The mode whose providers are registered: `mode`, after any fallback. */
+let active: IdeMode | undefined;
 let providers: monaco.IDisposable[] = [];
 
 /**
@@ -75,7 +79,7 @@ export function trackEditor(editor: monaco.editor.IStandaloneCodeEditor, id: str
     entry.pyright?.dispose();
     editors.delete(editor);
   });
-  if (mode !== undefined) applyTo(editor, entry, mode);
+  if (active !== undefined) applyTo(editor, entry, active);
 }
 
 /**
@@ -84,8 +88,20 @@ export function trackEditor(editor: monaco.editor.IStandaloneCodeEditor, id: str
  * names. `hackerrank`: only the static completion and word suggestions, as on the real screen.
  */
 export function applyIdeMode(next: IdeMode): void {
-  if (next === mode) return;
   mode = next;
+  refresh();
+}
+
+/** Falls back from `full` to the `hackerrank` features while pyright is unavailable. */
+export function setPyrightAvailable(available: boolean): void {
+  pyrightAvailable = available;
+  refresh();
+}
+
+function refresh(): void {
+  const next = mode === "full" && !pyrightAvailable ? "hackerrank" : mode;
+  if (next === active || next === undefined) return;
+  active = next;
   for (const p of providers) p.dispose();
   providers =
     next === "full"

@@ -1,5 +1,6 @@
 // The contract between the renderer and the main process. Only types, constants and pure helpers: safe to import anywhere.
 import type { DiscoverResult } from "../judge/python";
+import type { LspStatus } from "../lsp/host";
 import type { ProgramResult, RunReport, TestResult, TestStatus } from "../judge/runner";
 import type { Difficulty, RunMode, TestKind, ValidationError } from "../judge/types";
 import type {
@@ -18,6 +19,7 @@ export type {
   Diagnostic,
   DiscoverResult,
   Hover,
+  LspStatus,
   Position,
   RunMode,
   SignatureHelp,
@@ -99,6 +101,10 @@ export const CHANNELS = {
   lspSignatureHelp: "lsp:signature-help",
   /** Main → renderer: an open document's full set of diagnostics, as `(id, Diagnostic[])`. */
   lspDiagnostics: "lsp:diagnostics",
+  /** Renderer → main: the server's current `LspStatus`. */
+  lspStatus: "lsp:status",
+  /** Main → renderer: the server's new `LspStatus` each time it changes. */
+  lspStatusChanged: "lsp:status-changed",
 } as const;
 
 /**
@@ -156,4 +162,11 @@ export interface HackrankApi {
    * them; an empty set clears them. Advisory only. Returns a function that removes the listener.
    */
   onLspDiagnostics(listener: (id: string, diagnostics: Diagnostic[]) => void): () => void;
+  /**
+   * `unavailable` once the server has failed twice: the editor then falls back to the
+   * HackerRank-like features, without changing the saved mode, until `setIdeMode("hackerrank")`.
+   */
+  lspStatus(): Promise<LspStatus>;
+  /** Calls `listener` each time the status changes. Returns a function that removes the listener. */
+  onLspStatus(listener: (status: LspStatus) => void): () => void;
 }

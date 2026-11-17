@@ -26,10 +26,12 @@ const pyright = createPyrightHost({
   },
 });
 
+const broadcast = (channel: string, ...args: unknown[]) => {
+  for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel, ...args);
+};
 // Pushed to every window; a renderer ignores documents it has no editor for.
-pyright.onDiagnostics((id, diagnostics) => {
-  for (const win of BrowserWindow.getAllWindows()) win.webContents.send(CHANNELS.lspDiagnostics, id, diagnostics);
-});
+pyright.onDiagnostics((id, diagnostics) => broadcast(CHANNELS.lspDiagnostics, id, diagnostics));
+pyright.onStatus((status) => broadcast(CHANNELS.lspStatusChanged, status));
 
 /** Set by electron-vite in development: the renderer's dev server. */
 const devServerUrl = process.env["ELECTRON_RENDERER_URL"];
@@ -99,6 +101,7 @@ function registerIpc(): void {
   );
   ipcMain.handle(CHANNELS.lspResolveCompletion, (_e, item) => pyright.resolveCompletion(requireCompletionItem(item)));
   ipcMain.handle(CHANNELS.lspHover, (_e, id, position) => pyright.hover(requireString(id), requirePosition(position)));
+  ipcMain.handle(CHANNELS.lspStatus, () => pyright.status());
   ipcMain.handle(CHANNELS.lspSignatureHelp, (_e, id, position, context) =>
     pyright.signatureHelp(requireString(id), requirePosition(position), requireSignatureHelpContext(context)),
   );

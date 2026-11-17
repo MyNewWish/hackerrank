@@ -16,7 +16,7 @@ let host: PyrightHost | undefined;
 
 function makeHost(): PyrightHost {
   host = createPyrightHost({
-    serverEntry,
+    serverEntry: () => serverEntry,
     workspaceDir: mkdtempSync(join(tmpdir(), "pyright-host-test-")),
     pythonVersion: async () => "3.12",
     fork: (entry, args, env): ServerProcess => {

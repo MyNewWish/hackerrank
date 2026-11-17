@@ -19,7 +19,8 @@ export function createPyrightHost(options: {
 }): PyrightHost {
   return createHost({
     ...options,
-    serverEntry: createRequire(import.meta.url).resolve("pyright/langserver.index.js"),
+    // Resolved on each start, so a missing server falls back like a crashed one.
+    serverEntry: () => createRequire(import.meta.url).resolve("pyright/langserver.index.js"),
     fork,
   });
 }

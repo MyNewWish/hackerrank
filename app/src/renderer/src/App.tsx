@@ -2,10 +2,10 @@ import Editor from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import type { DiscoverResult, IdeMode, QuestionSummary, QuestionView, RunMode, Settings } from "../../shared/api";
+import type { DiscoverResult, IdeMode, LspStatus, QuestionSummary, QuestionView, RunMode, Settings } from "../../shared/api";
 import { CUSTOM_STDIN_ID, CustomRun, type CustomState } from "./CustomRun";
 import { Results, type RunState } from "./Results";
-import { applyIdeMode, trackEditor } from "./monaco";
+import { applyIdeMode, setPyrightAvailable, trackEditor } from "./monaco";
 import { SettingsDialog } from "./SettingsDialog";
 import { shortcutAction } from "./shortcuts";
 import { Statement } from "./Statement";
@@ -137,6 +137,18 @@ export function App() {
   useEffect(() => {
     if (ideMode) applyIdeMode(ideMode);
   }, [ideMode]);
+
+  // After pyright fails twice the editor falls back to the HackerRank-like features; the saved mode stays.
+  const [lspStatus, setLspStatus] = useState<LspStatus>("ready");
+  useEffect(() => {
+    const apply = (status: LspStatus) => {
+      setPyrightAvailable(status === "ready");
+      setLspStatus(status);
+    };
+    const stop = api.onLspStatus(apply);
+    void api.lspStatus().then(apply);
+    return stop;
+  }, []);
 
   /** Saves and applies the editor mode; on failure the current mode stays. */
   const changeIdeMode = async (mode: IdeMode) => {
@@ -419,6 +431,11 @@ export function App() {
       </Group>
       <footer className="status-bar">
         <PythonStatus python={python} />
+        {ideMode === "full" && lspStatus === "unavailable" && (
+          <span className="lsp-status" title="The Pyright server failed twice; basic completion is used instead">
+            Python IDE features unavailable
+          </span>
+        )}
         {settings && (
           <span className="bank-path" title={settings.bankDir}>
             Bank: {settings.bankDir}

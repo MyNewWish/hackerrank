@@ -47,6 +47,8 @@ export interface PyrightOptions {
   /** The interpreter's version, e.g. `3.12.1`; pyright's own default when unknown. */
   pythonVersion: string | undefined;
   fork: ForkServer;
+  /** How long the server may take to connect and initialize before the start fails; default 60 s. */
+  startTimeoutMs?: number;
 }
 
 export type DiagnosticsListener = (id: string, diagnostics: Diagnostic[]) => void;
@@ -101,18 +103,38 @@ export async function startPyright(options: PyrightOptions): Promise<PyrightSess
   // Electron utility processes cannot pipe stdin, so the server connects back over a named pipe.
   const pipeName = generateRandomPipeName();
   const transport = await createClientPipeTransport(pipeName);
-  const server = options.fork(options.serverEntry, [`--pipe=${pipeName}`], withoutPath(process.env));
-  const exited = new Promise<void>((resolve) => server.onExit(resolve));
-  const [reader, writer] = await Promise.race([
-    transport.onConnected(),
-    exited.then(() => Promise.reject(new Error("pyright exited before it connected"))),
-  ]);
-  const connection = createMessageConnection(reader, writer);
-  answerServerRequests(connection);
-  connection.listen();
-
+  let server: ServerProcess | undefined;
+  let connection: MessageConnection | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    server = options.fork(options.serverEntry, [`--pipe=${pipeName}`], withoutPath(process.env));
+    const exited = new Promise<void>((resolve) => server!.onExit(resolve));
+    // A server that exits, or hangs without answering, must not leave the start waiting forever.
+    const failed = Promise.race([
+      exited.then(() => Promise.reject(new Error("pyright exited while starting"))),
+      new Promise<never>((_, reject) => {
+        const ms = options.startTimeoutMs ?? 60_000;
+        timer = setTimeout(() => reject(new Error(`pyright did not start within ${ms} ms`)), ms);
+      }),
+    ]);
+    const [reader, writer] = await Promise.race([transport.onConnected(), failed]);
+    connection = createMessageConnection(reader, writer);
+    answerServerRequests(connection);
+    connection.listen();
+    await Promise.race([initialize(connection, workspaceDir), failed]);
+    return openSession(connection, server, exited, workspaceDir);
+  } catch (e) {
+    // A server that could not be set up must not be left running.
+    connection?.dispose();
+    server?.kill();
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function initialize(connection: MessageConnection, workspaceDir: string): Promise<void> {
   const rootUri = pathToFileURL(workspaceDir).href;
-  const initialize: InitializeParams = {
+  const params: InitializeParams = {
     processId: process.pid,
     rootUri,
     workspaceFolders: [{ uri: rootUri, name: "hackrank" }],
@@ -142,8 +164,17 @@ export async function startPyright(options: PyrightOptions): Promise<PyrightSess
       },
     },
   };
-  await connection.sendRequest("initialize", initialize);
+  await connection.sendRequest("initialize", params);
   await connection.sendNotification("initialized", {});
+}
+
+/** The session over an initialized server. */
+function openSession(
+  connection: MessageConnection,
+  server: ServerProcess,
+  exited: Promise<void>,
+  workspaceDir: string,
+): PyrightSession {
 
   // Encoded, so no id can name a path outside the workspace.
   const uriOf = (id: string) => pathToFileURL(join(workspaceDir, encodeURIComponent(id), "solution.py")).href;
