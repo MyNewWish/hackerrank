@@ -7,7 +7,15 @@
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["bun", "node"]
+    "types": [
+      "bun",
+      "node"
+    ],
+    "jsx": "react-jsx"
   },
-  "include": ["src", "test"]
+  "include": [
+    "src",
+    "test",
+    "electron.vite.config.ts"
+  ]
 }
