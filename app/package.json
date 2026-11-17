@@ -1,5 +1,8 @@
 {
   "name": "hackrank",
+  "version": "0.1.0",
+  "description": "Offline practice app for HackerRank-style Python screens",
+  "author": "licanhuadev",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +12,8 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "gen": "bun src/cli/gen.ts",
-    "validate": "bun src/cli/validate.ts"
+    "validate": "bun src/cli/validate.ts",
+    "package": "bun scripts/package.ts"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -33,14 +37,47 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
     "electron": "^45.3.3",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.8"
   },
   "main": "./out/main/index.js",
   "build": {
+    "appId": "dev.licanhua.hackrank",
+    "productName": "HackRank",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**",
+      "package.json"
+    ],
     "asarUnpack": [
       "node_modules/pyright/**"
-    ]
+    ],
+    "npmRebuild": false,
+    "publish": null,
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.education"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Education"
+    }
   }
 }
