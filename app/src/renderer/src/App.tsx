@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DiscoverResult, IdeMode, LspStatus, QuestionSummary, Settings } from "../../shared/api";
 import { errorMessage } from "./errors";
+import { Home, type OkSummary } from "./Home";
 import { applyIdeMode, setPyrightAvailable } from "./monaco";
 import { SettingsDialog } from "./SettingsDialog";
 import { loadOpening, TestScreen, useRunLock, type Opening, type ResultsTab, type TestScreenHandle } from "./TestScreen";
@@ -13,14 +14,10 @@ const IDE_MODE_OPTIONS: { mode: IdeMode; label: string; title: string }[] = [
 const api = window.hackrank;
 
 /**
- * The question the screen shows, loaded, and which screen this is: a new `seq` mounts a fresh
- * screen. Undefined `opening` when the question is malformed or there is none.
+ * Which screen is shown: Home, or test mode for one attempt at a question. Each attempt has its
+ * own `seq`, which mounts a fresh test screen, and its own stopwatch start.
  */
-interface Opened {
-  summary: QuestionSummary | undefined;
-  opening: Opening | undefined;
-  seq: number;
-}
+type Screen = { kind: "home" } | { kind: "test"; summary: OkSummary; opening: Opening; startedAt: number; seq: number };
 
 export function App() {
   const [questions, setQuestions] = useState<QuestionSummary[]>([]);
@@ -29,16 +26,18 @@ export function App() {
   /** Each question's custom stdin, kept while the app is open. */
   const [customInputs, setCustomInputs] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState<string>();
-  /** The question most recently picked; an opening overtaken by a later pick is dropped. */
-  const current = useRef<string>(undefined);
   /** Questions whose reference the user has confirmed revealing, kept while the app is open. */
   const revealed = useRef(new Set<string>());
-  /** When each question's stopwatch started (its first keystroke), kept while the app is open. */
-  const [startedAt, setStartedAt] = useState<Record<string, number>>({});
-  /** The question picked in the dropdown, which may be a malformed one (then nothing is open). */
+  /** The question selected on Home, kept across test mode; may be a malformed one. */
   const [selectedId, setSelectedId] = useState<string>();
-  const [opened, setOpened] = useState<Opened>({ summary: undefined, opening: undefined, seq: 0 });
-  const screen = useRef<TestScreenHandle>(null);
+  const [screen, setScreen] = useState<Screen>({ kind: "home" });
+  /** Numbers attempts, so each Start testing mounts a fresh test screen. */
+  const attemptSeq = useRef(0);
+  /** A question is being loaded for Start testing; set synchronously so a double click starts one attempt. */
+  const starting = useRef(false);
+  /** `starting`, as state for rendering: Start testing and Settings wait while it is set. */
+  const [startPending, setStartPending] = useState(false);
+  const testScreen = useRef<TestScreenHandle>(null);
   /** Why the bank could not be listed. */
   const [bankError, setBankError] = useState<string>();
   /** The bank has been listed at least once, so an empty list means an empty bank. */
@@ -47,77 +46,69 @@ export function App() {
   const [editingSettings, setEditingSettings] = useState(false);
   const lock = useRunLock();
 
-  /**
-   * Opens a question, or for a malformed one shows its validation errors instead: saves the
-   * screen's pending code, loads `summary`, then replaces the screen with a fresh one for it. The
-   * question already open is reopened in place, keeping its editor, unless `fresh` (another bank).
-   */
-  const openQuestion = useCallback(async (summary: QuestionSummary | undefined, fresh = false) => {
-    const id = summary?.id;
-    current.current = id;
-    setSelectedId(id);
-    await screen.current?.flush();
-    if (current.current !== id) return;
-    const opening = summary?.ok ? await loadOpening(summary.id) : undefined;
-    if (current.current !== id) return;
-    if (!fresh && opening?.ok && summary && screen.current?.isOpen(summary.id)) {
-      screen.current.reopen(opening);
-      setOpened((o) => ({ ...o, summary, opening }));
-      return;
-    }
-    setOpened((o) => ({ summary, opening, seq: o.seq + 1 }));
-  }, []);
+  /** Numbers bank scans, so a slow earlier scan cannot overwrite a later one's list. */
+  const bankSeq = useRef(0);
 
-  /** Re-scans the bank; on failure (e.g. the bank folder is gone) shows why and lists nothing. */
-  const listBank = useCallback(async (): Promise<QuestionSummary[]> => {
+  /** Re-scans the bank, picking up folders added, fixed or broken; on failure shows why and lists nothing. */
+  const listBank = useCallback(async () => {
+    const seq = ++bankSeq.current;
     try {
       const list = await api.listQuestions();
+      if (bankSeq.current !== seq) return;
       setQuestions(list);
       setBankError(undefined);
-      return list;
     } catch (e) {
+      if (bankSeq.current !== seq) return;
       setQuestions([]);
       setBankError(errorMessage(e));
-      return [];
-    } finally {
-      setBankScanned(true);
     }
+    setBankScanned(true);
   }, []);
 
   /** Numbers Python detections, so a slow earlier one cannot overwrite a later one's result. */
   const pythonSeq = useRef(0);
 
-  /**
-   * Scans the bank and Python afresh, then opens the selected question if still there, else the
-   * first; `newBank` when the bank folder changed, so a same-named question opens afresh.
-   */
-  const loadEnvironment = useCallback(
-    async (newBank = false) => {
-      const seq = ++pythonSeq.current;
-      setPython(undefined);
-      void api.detectPython().then((found) => {
-        if (pythonSeq.current === seq) setPython(found);
-      });
-      const list = await listBank();
-      void openQuestion(stillListedOrFirst(list, current.current), newBank);
-    },
-    [listBank, openQuestion],
-  );
+  /** Scans the bank and Python afresh. */
+  const loadEnvironment = useCallback(async () => {
+    const seq = ++pythonSeq.current;
+    setPython(undefined);
+    void api.detectPython().then((found) => {
+      if (pythonSeq.current === seq) setPython(found);
+    });
+    await listBank();
+  }, [listBank]);
 
   useEffect(() => {
     void api.getSettings().then(setSettings);
     void loadEnvironment();
   }, [loadEnvironment]);
 
+  /** Opens test mode for `summary` with its saved solution, starting a new stopwatch from zero. */
+  const startTesting = async (summary: OkSummary) => {
+    if (starting.current) return;
+    starting.current = true;
+    setStartPending(true);
+    try {
+      const opening = await loadOpening(summary.id);
+      // Timed from when test mode appears, so it opens at 0:00 however long the load took.
+      setScreen({ kind: "test", summary, opening, startedAt: Date.now(), seq: ++attemptSeq.current });
+    } finally {
+      starting.current = false;
+      setStartPending(false);
+    }
+  };
+
   /**
-   * Picks up question folders added, fixed or broken since the last scan. The open question is
-   * left as it is (its code and results stay) unless its folder is now malformed or gone.
+   * After confirmation, ends the attempt: saves pending code, then unmounts the test screen, which
+   * drops any in-flight run's late results and closes its pyright documents. The time is discarded.
    */
-  const refresh = async () => {
-    const list = await listBank();
-    const target = stillListedOrFirst(list, current.current);
-    if (target?.ok && screen.current?.isOpen(target.id)) return;
-    void openQuestion(target);
+  const goHome = async () => {
+    if (screen.kind !== "test") return;
+    const ask = `Go back to Home? This ends your timed attempt at ${screen.summary.id}. Your code is saved.`;
+    if (!window.confirm(ask)) return;
+    await testScreen.current?.flush();
+    setScreen({ kind: "home" });
+    void listBank();
   };
 
   const ideMode = settings?.ideMode;
@@ -150,111 +141,99 @@ export function App() {
     }
   };
 
+  /** Settings are edited on Home only, so no question is open and no code is pending. */
   const saveSettings = async (next: Settings) => {
-    await screen.current?.flush(); // pending code belongs to the current bank's workspace
     let saved: Settings;
     try {
       saved = await api.updateSettings(next);
     } catch (e) {
       throw new Error(errorMessage(e));
     }
-    const newBank = saved.bankDir !== settings?.bankDir;
-    if (newBank) {
+    if (saved.bankDir !== settings?.bankDir) {
       // Question ids now name another bank's questions.
-      current.current = undefined;
-      setStartedAt({});
+      setSelectedId(undefined);
       setCustomInputs({});
       revealed.current.clear();
     }
     setSettings(saved);
     setEditingSettings(false);
-    await loadEnvironment(newBank);
+    await loadEnvironment();
   };
-
-  const openId = opened.summary?.id;
 
   return (
     <div className="app">
-      <TestScreen
-        key={opened.seq}
-        ref={screen}
-        summary={opened.summary}
-        opening={opened.opening}
-        bankError={bankError}
-        bankEmpty={bankScanned && questions.length === 0}
-        python={python}
-        lock={lock}
-        startedAt={openId === undefined ? undefined : startedAt[openId]}
-        onStartStopwatch={() => {
-          if (openId === undefined) return;
-          setStartedAt((all) => (openId in all ? all : { ...all, [openId]: Date.now() }));
-        }}
-        customInput={openId === undefined ? "" : (customInputs[openId] ?? "")}
-        onCustomInputChange={(input) => {
-          if (openId !== undefined) setCustomInputs((all) => ({ ...all, [openId]: input }));
-        }}
-        revealed={revealed.current}
-        tab={tab}
-        onTabChange={setTab}
-        saveError={saveError}
-        onSaved={setSaveError}
-        toolbarStart={
-          <>
-            <select
-              value={selectedId ?? ""}
-              onChange={(e) => void openQuestion(questions.find((q) => q.id === e.target.value))}
-              aria-label="Question"
-            >
-              {questions.map((q) =>
-                q.ok ? (
-                  <option key={q.id} value={q.id}>
-                    {q.id}. {q.title} — {q.difficulty} · {q.targetMinutes} min
-                  </option>
-                ) : (
-                  <option key={q.id} value={q.id}>
-                    {q.id}. ⚠ {q.folder} is malformed
-                  </option>
-                ),
-              )}
-            </select>
+      {screen.kind === "home" ? (
+        <Home
+          questions={questions}
+          bankError={bankError}
+          bankEmpty={bankScanned && questions.length === 0}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onStart={(summary) => void startTesting(summary)}
+          starting={startPending}
+          settingsButton={
             <button
               type="button"
               className="secondary"
-              onClick={() => void refresh()}
-              title="Re-scan the question bank for added or changed questions"
+              onClick={() => setEditingSettings(true)}
+              disabled={!settings || lock.running || startPending}
+              title="Question bank folder and Python interpreter"
             >
-              Refresh
+              Settings
             </button>
-          </>
-        }
-        settingsButton={
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => setEditingSettings(true)}
-            disabled={!settings || lock.running}
-            title="Question bank folder and Python interpreter"
-          >
-            Settings
-          </button>
-        }
-        ideModeSwitch={
-          <div className="ide-mode" role="group" aria-label="Editor mode">
-            {IDE_MODE_OPTIONS.map(({ mode, label, title }) => (
+          }
+        />
+      ) : (
+        <TestScreen
+          key={screen.seq}
+          ref={testScreen}
+          opening={screen.opening}
+          python={python}
+          lock={lock}
+          startedAt={screen.startedAt}
+          customInput={customInputs[screen.summary.id] ?? ""}
+          onCustomInputChange={(input) => {
+            const { id } = screen.summary;
+            setCustomInputs((all) => ({ ...all, [id]: input }));
+          }}
+          revealed={revealed.current}
+          tab={tab}
+          onTabChange={setTab}
+          saveError={saveError}
+          onSaved={setSaveError}
+          toolbarStart={
+            <>
               <button
-                key={mode}
                 type="button"
-                aria-pressed={ideMode === mode}
-                onClick={() => void changeIdeMode(mode)}
-                disabled={!settings}
-                title={title}
+                className="secondary"
+                onClick={() => void goHome()}
+                title="End this attempt and go back to the question list"
               >
-                {label}
+                Home
               </button>
-            ))}
-          </div>
-        }
-      />
+              <span className="question-name">
+                {screen.summary.id}. {screen.summary.title}
+              </span>
+            </>
+          }
+          ideModeSwitch={
+            <div className="ide-mode" role="group" aria-label="Editor mode">
+              {IDE_MODE_OPTIONS.map(({ mode, label, title }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={ideMode === mode}
+                  onClick={() => void changeIdeMode(mode)}
+                  disabled={!settings}
+                  title={title}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          }
+        />
+      )}
       <footer className="status-bar">
         <PythonStatus python={python} />
         {ideMode === "full" && lspStatus === "unavailable" && (
@@ -273,11 +252,6 @@ export function App() {
       )}
     </div>
   );
-}
-
-/** The question `id` if the bank still lists it, else the first loadable one. */
-function stillListedOrFirst(list: QuestionSummary[], id: string | undefined): QuestionSummary | undefined {
-  return list.find((q) => q.id === id) ?? list.find((q) => q.ok);
 }
 
 /** The interpreter runs use, or why there is none and how to fix it. */

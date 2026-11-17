@@ -2,7 +2,7 @@ import Editor from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import type { CodeView, DiscoverResult, QuestionSummary, QuestionView, RunMode } from "../../shared/api";
+import type { CodeView, DiscoverResult, QuestionView, RunMode } from "../../shared/api";
 import { CUSTOM_STDIN_ID, CustomRun, type CustomState } from "./CustomRun";
 import { errorMessage } from "./errors";
 import { trackEditor } from "./monaco";
@@ -58,15 +58,8 @@ export async function loadOpening(id: string): Promise<Opening> {
 
 /** What the app can ask of the screen on screen. */
 export interface TestScreenHandle {
-  /** Saves any pending code now, e.g. before another question or bank replaces this screen. */
+  /** Saves any pending code now, e.g. before the user goes back to Home. */
   flush(): Promise<void>;
-  /** Whether question `id` is open (loaded, not malformed or failed). */
-  isOpen(id: string): boolean;
-  /**
-   * Opens the already-open question again in place (e.g. after Settings are saved): back on my
-   * solution with results cleared, keeping the editor and its pyright document.
-   */
-  reopen(opening: Extract<Opening, { ok: true }>): void;
 }
 
 /**
@@ -104,25 +97,19 @@ export function useRunLock(): RunLock {
 }
 
 /**
- * The editor screen for one question: statement, editor, results, custom input, the My solution |
- * Reference switch, Reset/Recover and the stopwatch. Mount it afresh (with a new `key`) to open
- * another question, passing it already loaded. State kept while the app is open (stopwatch
- * starts, custom stdin, revealed references, the results tab and the autosave error) is the app's.
+ * Test mode, the editor screen for one question: statement, editor, results, custom input, the My
+ * solution | Reference switch, Reset/Recover and the stopwatch. Mount it afresh (with a new `key`)
+ * for each attempt, passing the question already loaded; unmounting it drops its late run results
+ * and closes its editors' pyright documents. State kept while the app is open (custom stdin,
+ * revealed references, the results tab and the autosave error) is the app's.
  */
 export function TestScreen(props: {
-  /** The question to open; malformed (or none) shows why nothing is open instead. */
-  summary: QuestionSummary | undefined;
-  /** `summary` loaded, read on mount only; undefined when it is malformed or none. */
-  opening: Opening | undefined;
-  /** Why the bank could not be listed. */
-  bankError: string | undefined;
-  /** The bank has been listed and has no questions. */
-  bankEmpty: boolean;
+  /** The question to open, read on mount only, or why it could not be loaded. */
+  opening: Opening;
   python: DiscoverResult | undefined;
   lock: RunLock;
-  /** When this question's stopwatch started (its first keystroke). */
-  startedAt: number | undefined;
-  onStartStopwatch: () => void;
+  /** When this attempt's stopwatch started (Start testing). */
+  startedAt: number;
   customInput: string;
   onCustomInputChange: (input: string) => void;
   /** Questions whose reference the user has confirmed revealing; the screen adds to it. */
@@ -132,23 +119,22 @@ export function TestScreen(props: {
   saveError: string | undefined;
   /** Each save's outcome: an error message, or undefined once a save succeeds. */
   onSaved: (error: string | undefined) => void;
-  /** The toolbar's leading controls, its Settings button and its editor mode switch. */
+  /** The toolbar's leading controls and its editor mode switch. */
   toolbarStart: ReactNode;
-  settingsButton: ReactNode;
   ideModeSwitch: ReactNode;
   ref?: Ref<TestScreenHandle>;
 }) {
-  const { summary, python, lock, revealed, onSaved } = props;
+  const { python, lock, revealed, onSaved } = props;
   const { running } = lock;
   const dark = useDarkMode();
   // Every question opens on my solution, never on its answer.
   const [open, setOpen] = useState<OpenQuestion | undefined>(() =>
-    props.opening?.ok ? { question: props.opening.question, view: "solution", initialCode: props.opening.initialCode } : undefined,
+    props.opening.ok ? { question: props.opening.question, view: "solution", initialCode: props.opening.initialCode } : undefined,
   );
-  const loadError = props.opening?.ok === false ? props.opening.error : undefined;
+  const loadError = props.opening.ok ? undefined : props.opening.error;
   const [run, setRun] = useState<RunState>({ kind: "idle" });
   const [custom, setCustom] = useState<CustomState>({ kind: "idle" });
-  const code = useRef(props.opening?.ok ? props.opening.initialCode : "");
+  const code = useRef(props.opening.ok ? props.opening.initialCode : "");
   /** False once the screen is gone; its late replies are dropped. */
   const live = useRef(true);
   useEffect(() => {
@@ -179,25 +165,7 @@ export function TestScreen(props: {
   });
   const editorRef = useRef<editor.IStandaloneCodeEditor>(undefined);
 
-  useImperativeHandle(
-    props.ref,
-    () => ({
-      flush: autosave.flush,
-      isOpen: (id) => open?.question.id === id,
-      reopen: ({ question, initialCode }) => {
-        const wasSolution = currentView.current === "solution";
-        currentView.current = "solution";
-        setRun({ kind: "idle" });
-        setCustom({ kind: "idle" });
-        referenceSeq.current++; // drop answers about the reference being left
-        setReferenceModified(false);
-        // Already on my solution, the editor stays and its text (maybe typed since the read) is the code.
-        if (!wasSolution) code.current = initialCode;
-        setOpen({ question, view: "solution", initialCode });
-      },
-    }),
-    [autosave, open],
-  );
+  useImperativeHandle(props.ref, () => ({ flush: autosave.flush }), [autosave]);
 
   // Code still pending when the screen goes is saved; the app normally flushes it first.
   useEffect(() => () => void autosave.flush(), [autosave]);
@@ -280,7 +248,7 @@ export function TestScreen(props: {
       try {
         const recovered = await api.recoverReference(id);
         if (!live.current || currentView.current !== "reference") return;
-        // A flush, so the stopwatch ignores it; the save it queues writes the same text.
+        // The save this change queues writes the same text; flush writes it now.
         editorRef.current?.setValue(recovered);
         await autosave.flush();
       } catch (e) {
@@ -347,7 +315,6 @@ export function TestScreen(props: {
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, []);
 
-  const malformed = summary && !summary.ok ? summary : undefined;
   const { tab, onTabChange } = props;
 
   return (
@@ -357,7 +324,6 @@ export function TestScreen(props: {
         {open && <Stopwatch startedAt={props.startedAt} targetMinutes={open.question.targetMinutes} />}
         {props.saveError && <span className="save-error">Autosave failed: {props.saveError}</span>}
         <span className="spacer" />
-        {props.settingsButton}
         {open?.view === "reference" ? (
           <button
             type="button"
@@ -422,7 +388,9 @@ export function TestScreen(props: {
           {open ? (
             <Statement key={open.question.id} markdown={open.question.statement} />
           ) : (
-            <NothingOpen bankError={props.bankError} malformed={malformed} loadError={loadError} empty={props.bankEmpty} />
+            <p className="placeholder error" role="alert">
+              Cannot open the question: {loadError}
+            </p>
           )}
         </Panel>
         <Separator className="separator vertical" />
@@ -450,13 +418,10 @@ export function TestScreen(props: {
                     editorRef.current = instance;
                     trackEditor(instance, documentId(open));
                   }}
-                  onChange={(value, event) => {
+                  onChange={(value) => {
                     const { question, view } = open;
                     code.current = value ?? "";
                     autosave.schedule(question.id, view, code.current);
-                    // Only typing in my solution starts the stopwatch: a flush is a programmatic
-                    // replace (Reset, Recover), and the reference is not my attempt.
-                    if (!event.isFlush && view === "solution") props.onStartStopwatch();
                   }}
                 />
               )}
@@ -500,42 +465,6 @@ export function TestScreen(props: {
       </Group>
     </>
   );
-}
-
-/** The statement panel when no question is open: why not, most specific reason first. */
-function NothingOpen(props: {
-  bankError: string | undefined;
-  malformed: Extract<QuestionSummary, { ok: false }> | undefined;
-  loadError: string | undefined;
-  empty: boolean;
-}) {
-  if (props.bankError) {
-    return (
-      <div className="malformed">
-        <h2>Cannot read the question bank</h2>
-        <p>{props.bankError}. Choose another folder in Settings.</p>
-      </div>
-    );
-  }
-  if (props.malformed) {
-    const { folder, errors } = props.malformed;
-    return (
-      <div className="malformed">
-        <h2>{folder} is malformed</h2>
-        <p>Fix these problems in the question folder, then click Refresh:</p>
-        <ul>
-          {errors.map((e, i) => (
-            <li key={i}>
-              <code>{e.path}</code>: {e.message}
-            </li>
-          ))}
-        </ul>
-      </div>
-    );
-  }
-  if (props.loadError) return <p className="placeholder">{props.loadError}</p>;
-  if (props.empty) return <p className="placeholder">No questions in this bank. Add a q&lt;N&gt;_&lt;slug&gt; folder, then click Refresh.</p>;
-  return <p className="placeholder">Loading…</p>;
 }
 
 /** Where an autosave writes: one view of one question. */

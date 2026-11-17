@@ -49,12 +49,9 @@ body { background: var(--bg); color: var(--fg); }
   display: flex; align-items: center; gap: 12px;
   padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--panel);
 }
-.top-bar select {
-  min-width: 0; max-width: 520px; flex: 1 1 auto; padding: 4px 6px;
-  background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px;
-}
+.question-name, .app-title, .question-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.question-name, .app-title { font-weight: 600; }
 .stopwatch { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
-.stopwatch.idle { color: var(--muted); }
 .stopwatch.warn { color: var(--warn); }
 .stopwatch.over { color: var(--fail); }
 .spacer { margin-left: auto; }
@@ -190,3 +187,29 @@ button.link:hover { text-decoration: underline; }
   font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; font-size: 12.5px;
 }
 .save-error { color: var(--fail); font-size: 13px; white-space: nowrap; }
+
+.home { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.home-body { flex: 1 1 auto; min-height: 0; display: flex; }
+.question-list {
+  flex: 0 1 560px; min-width: 260px; margin: 0; padding: 4px 0; list-style: none; overflow: auto;
+  border-right: 1px solid var(--border);
+}
+.question-row {
+  display: flex; align-items: baseline; gap: 10px; width: 100%; padding: 6px 16px; border: none;
+  background: none; color: var(--fg); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+}
+.question-row:hover { background: var(--panel); }
+.question-row.selected { background: var(--selected); }
+.question-id { min-width: 2.5em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.question-title { flex: 1 1 auto; }
+.malformed-name { color: var(--fail); }
+.difficulty { text-transform: capitalize; }
+.difficulty.easy { color: var(--pass); }
+.difficulty.medium { color: var(--warn); }
+.difficulty.hard { color: var(--fail); }
+.question-details { flex: 1 1 auto; min-width: 0; overflow: auto; }
+.details { padding: 4px 24px 24px; line-height: 1.55; }
+.details dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0 0 20px; }
+.details dt { color: var(--muted); }
+.details dd { margin: 0; }
+.details .error { color: var(--fail); }
