@@ -30,18 +30,17 @@
 | `questions/q4_subscription_emails` | billing lifecycle simulation | 50 min |
 | `questions/q5_request_routing` ★ | route matching, precedence, weighted round-robin, health | 60 min |
 | `questions/q6_payment_commands` ★ | payment state machine, partial capture/refund, idempotency keys | 60 min |
-| `p7_invoice_reconciliation` ★ | allocate payments to invoices, credits, aging, FX rounding | 60 min |
-| `p8_csv_validation` | header/row checks, cross-column refs, cycle detection | 50 min |
-
-| `p9_atlas_names` | company-name normalization, registry, reclaim | 45 min |
-| `p10_card_ranges` | BIN interval gap-filling and merging, stdin parsing | 40 min |
-| `p11_fraud_mcc` ★ | "Catch Me If You Can": MCC thresholds, count, then %, then disputes | 50 min |
-| `p12_store_closing` | closing-time penalty, O(n) scan, BEGIN/END token state machine | 40 min |
-| `p13_card_validation` | Luhn, network detection, redacted `*` digits, typo recovery | 50 min |
-| `p14_datacenter_routing` ★ | FastPrep "Request Routing System": REGISTER/SET_HEALTHY, Haversine, capacity-aware ROUTE, strict parsing | 60 min |
+| `questions/q7_invoice_reconciliation` ★ | allocate payments to invoices, credits, aging, FX rounding | 60 min |
+| `questions/q8_csv_validation` | header/row checks, cross-column refs, cycle detection | 50 min |
+| `questions/q9_atlas_names` | company-name normalization, registry, reclaim | 45 min |
+| `questions/q10_card_ranges` | BIN interval gap-filling and merging, stdin parsing | 40 min |
+| `questions/q11_fraud_mcc` ★ | "Catch Me If You Can": MCC thresholds, count, then %, then disputes | 50 min |
+| `questions/q12_store_closing` | closing-time penalty, O(n) scan, BEGIN/END token state machine | 40 min |
+| `questions/q13_card_validation` | Luhn, network detection, redacted `*` digits, typo recovery | 50 min |
+| `questions/q14_datacenter_routing` ★ | FastPrep "Request Routing System": REGISTER/SET_HEALTHY, Haversine, capacity-aware ROUTE, strict parsing | 60 min |
 
 ★ = reported most often in 2026, so prioritise these.
-p9–p13 (plus q4, "Subscription Notification Scheduler") come from
+q9–q13 (plus q4, "Subscription Notification Scheduler") come from
 [extrabrain's Stripe OA list](https://extrabrain.app/interview-questions/stripe-hackerrank-online-assessment-extrabrain/).
 That page leaves gaps and has wrong examples, so each problem.md states the rules the tests use.
 
