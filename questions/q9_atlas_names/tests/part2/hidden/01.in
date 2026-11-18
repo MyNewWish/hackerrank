@@ -1,0 +1,9 @@
+8
+NORMALIZE And  and AND
+NORMALIZE The Foo & Bar, Inc.
+NORMALIZE The
+x|Foo Inc.
+y|foo
+RESET
+y|foo
+x|Foo Inc.

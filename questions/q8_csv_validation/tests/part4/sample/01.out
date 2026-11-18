@@ -1,0 +1,2 @@
+cycle (manager_id): b -> c -> d -> b
+cycle (manager_id): e -> e

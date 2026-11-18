@@ -1,4 +1,9 @@
-"""Reference solution - invoice / payment reconciliation (all 4 parts)."""
+"""Reference solution - invoice / payment reconciliation (all 4 parts).
+
+Reads counted invoice, payment, rate and query sections from stdin; prints the
+lines of each query in order.
+"""
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
@@ -119,3 +124,31 @@ def aging_report(invoices, payments, as_of, rates=None):
         table[(x.customer, x.currency)][b] += x.outstanding
     return [f"{c} {cur} " + " ".join(f"{n}={fmt(v)}" for n, v in zip(BUCKETS, vals))
             for (c, cur), vals in sorted(table.items())]
+
+
+def main():
+    lines = sys.stdin.read().splitlines()
+    pos = 0
+
+    def section():
+        nonlocal pos
+        count = int(lines[pos]) if pos < len(lines) else 0
+        items = lines[pos + 1:pos + 1 + count]
+        pos += 1 + count
+        return items
+
+    invoices, payments, rates, queries = section(), section(), section(), section()
+    out = []
+    for query in queries:
+        cmd, *args = query.split()
+        if cmd == "STATUS":
+            out += invoice_status(invoices, payments, rates)
+        elif cmd == "CREDITS":
+            out += customer_credits(invoices, payments, rates) or ["NONE"]
+        elif cmd == "AGING":
+            out += aging_report(invoices, payments, args[0], rates) or ["NONE"]
+    print("\n".join(out))
+
+
+if __name__ == "__main__":
+    main()

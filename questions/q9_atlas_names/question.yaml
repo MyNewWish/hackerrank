@@ -1,0 +1,8 @@
+title: Atlas company name check
+difficulty: medium
+tags: [stripe, parsing, strings]
+targetMinutes: 45
+parts:
+  - { id: part1, title: Name availability }
+  - { id: part2, title: Normalize and reset }
+  - { id: part3, title: Reclaiming names }

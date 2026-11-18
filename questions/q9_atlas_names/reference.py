@@ -1,4 +1,9 @@
-"""Reference solution - Atlas company name check (all 3 parts)."""
+"""Reference solution - Atlas company name check (all 3 parts).
+
+Reads a request count and the request lines from stdin; prints one line per
+request that produces output.
+"""
+import sys
 
 SUFFIXES = {"inc.", "corp.", "llc", "l.l.c.", "llc."}
 ARTICLES = {"the", "an", "a"}
@@ -49,5 +54,21 @@ class NameRegistry:
         return out
 
 
-def check_names(requests):
-    return NameRegistry().process(requests)
+def main():
+    lines = sys.stdin.read().splitlines()
+    n = int(lines[0]) if lines else 0
+    registry = NameRegistry()
+    out = []
+    for line in lines[1:1 + n]:
+        stripped = line.strip()
+        if stripped == "RESET":
+            registry = NameRegistry()
+        elif stripped.startswith("NORMALIZE "):
+            out.append(normalize(stripped[len("NORMALIZE "):]) or "(empty)")
+        else:
+            out += registry.process([stripped])
+    print("\n".join(out))
+
+
+if __name__ == "__main__":
+    main()

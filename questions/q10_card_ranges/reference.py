@@ -1,4 +1,9 @@
-"""Reference solution - BIN range obfuscation (all 3 parts)."""
+"""Reference solution - BIN range obfuscation (all 3 parts).
+
+Reads the BIN, an interval count and the interval lines from stdin; prints one
+16-digit interval per line, or NONE.
+"""
+import sys
 
 MAX = 10**10 - 1
 
@@ -31,12 +36,16 @@ def obfuscate(bin6, intervals):
             merged[-1][1] = r[1]
         else:
             merged.append(r)
-    rows = merged
-    return [f"{bin6}{s:010d},{bin6}{e:010d},{b}" for s, e, b in rows]
+    return [f"{bin6}{s:010d},{bin6}{e:010d},{b}" for s, e, b in merged]
 
 
-def solve(text):
-    """HackerRank-style: whole stdin in, whole stdout out."""
-    lines = [l for l in text.splitlines() if l.strip()]
-    bin6, n = lines[0].strip(), int(lines[1])
-    return "\n".join(obfuscate(bin6, lines[2:2 + n]))
+def main():
+    lines = [l for l in sys.stdin.read().splitlines() if l.strip()]
+    bin6 = lines[0].strip() if lines else ""
+    n = int(lines[1]) if len(lines) > 1 else 0
+    result = obfuscate(bin6, lines[2:2 + n])
+    print("\n".join(result) if result else "NONE")
+
+
+if __name__ == "__main__":
+    main()

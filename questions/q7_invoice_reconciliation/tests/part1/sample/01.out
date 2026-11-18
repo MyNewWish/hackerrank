@@ -1,0 +1,4 @@
+INV-1 PARTIAL paid=60.00 due=40.00
+INV-2 PAID paid=50.00 due=0.00
+INV-3 PAID paid=80.00 due=0.00
+INV-4 OPEN paid=0.00 due=30.00

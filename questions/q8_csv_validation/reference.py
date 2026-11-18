@@ -1,6 +1,11 @@
-"""Reference solution - CSV validator (all 4 parts)."""
+"""Reference solution - CSV validator (all 4 parts).
+
+Reads a config count, the OPTIONAL / REF config lines and then the CSV text from
+stdin; prints one error per line, or VALID.
+"""
 import csv
 import io
+import sys
 
 
 def validate(text, optional=(), refs=None):
@@ -19,9 +24,10 @@ def validate(text, optional=(), refs=None):
         elif name in seen:
             errors.append(f"header: duplicate column '{name}'")
         seen.add(name)
-    for col in list(refs) + list(refs.values()):
-        if col not in seen:
-            errors.append(f"config: unknown column '{col}'")
+    for src, dst in refs.items():
+        for col in (src, dst):
+            if col not in seen:
+                errors.append(f"config: unknown column '{col}'")
     if errors:
         return errors
 
@@ -45,7 +51,7 @@ def validate(text, optional=(), refs=None):
             if v and v not in targets:
                 errors.append(f"row {n}: {src} '{v}' not found in {dst}")
 
-    # Part 4 - cycles
+    # Part 4 - cycles (iterative walk, so long chains don't hit the recursion limit)
     for src, dst in refs.items():
         nxt = {rec[dst]: rec[src] for _, rec in good if rec[dst] and rec[src]}
         cycles = set()
@@ -65,3 +71,22 @@ def validate(text, optional=(), refs=None):
                 state[p] = 2
         errors += [f"cycle ({src}): {c}" for c in sorted(cycles)]
     return errors
+
+
+def main():
+    lines = sys.stdin.read().split("\n")
+    k = int(lines[0]) if lines and lines[0].strip() else 0
+    optional, refs = set(), {}
+    for line in lines[1:1 + k]:
+        words = line.split()
+        if words[0] == "OPTIONAL":
+            optional.add(line.strip()[len("OPTIONAL"):].strip())
+        elif words[0] == "REF":
+            refs[words[1]] = words[2]
+    text = "\n".join(lines[1 + k:])
+    errors = validate(text, optional, refs)
+    print("\n".join(errors) if errors else "VALID")
+
+
+if __name__ == "__main__":
+    main()

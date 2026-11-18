@@ -1,0 +1,5 @@
+E1 PAID paid=10.00 due=0.00
+U1 PAID paid=110.00 due=0.00
+U2 PARTIAL paid=11.00 due=39.00
+acme EUR 0.01
+acme GBP 5.00

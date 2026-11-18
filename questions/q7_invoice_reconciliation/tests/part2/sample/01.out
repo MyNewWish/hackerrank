@@ -1,0 +1,6 @@
+INV-1 PAID paid=100.00 due=0.00
+INV-2 PAID paid=50.00 due=0.00
+INV-3 PARTIAL paid=30.00 due=50.00
+INV-4 PAID paid=30.00 due=0.00
+acme USD 65.00
+bolt USD 10.00

@@ -1,0 +1,8 @@
+title: Card range obfuscation
+difficulty: easy
+tags: [stripe, parsing, intervals, sorting]
+targetMinutes: 40
+parts:
+  - { id: part1, title: Format }
+  - { id: part2, title: Unsorted input with gaps }
+  - { id: part3, title: Merge }

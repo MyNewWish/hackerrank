@@ -1,0 +1,2 @@
+row 2: expected 3 fields, got 2
+row 3: missing value for 'name'

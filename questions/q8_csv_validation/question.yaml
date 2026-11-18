@@ -1,0 +1,9 @@
+title: CSV validator
+difficulty: medium
+tags: [stripe, parsing, csv, graphs]
+targetMinutes: 50
+parts:
+  - { id: part1, title: Header }
+  - { id: part2, title: Rows }
+  - { id: part3, title: References }
+  - { id: part4, title: Circular dependencies }

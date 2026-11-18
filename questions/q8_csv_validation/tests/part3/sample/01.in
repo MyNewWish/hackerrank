@@ -1,0 +1,9 @@
+2
+OPTIONAL manager_id
+REF manager_id id
+id,name,manager_id
+a,Ann,
+b,Bob,a
+c,Cat,z
+d,,b
+e,Eve

@@ -1,0 +1,9 @@
+title: Invoice / payment reconciliation
+difficulty: hard
+tags: [stripe, parsing, money, billing, sorting]
+targetMinutes: 60
+parts:
+  - { id: part1, title: Invoice status }
+  - { id: part2, title: "Unreferenced payments, overpayments, credits" }
+  - { id: part3, title: Aging report }
+  - { id: part4, title: Currency conversion }
