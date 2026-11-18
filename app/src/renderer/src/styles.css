@@ -237,3 +237,7 @@ button.link:hover { text-decoration: underline; }
 .details dt { color: var(--muted); }
 .details dd { margin: 0; }
 .details .error { color: var(--fail); }
+/* Below Start testing, so the button stays at the top of the pane; the pane scrolls, not the preview. */
+.statement-preview { margin-top: 20px; padding-top: 4px; border-top: 1px solid var(--border); }
+.statement-preview .statement { height: auto; overflow: visible; padding: 0; }
+.statement-preview .part-titles { margin: 8px 0; padding-left: 20px; }

@@ -1,5 +1,5 @@
-import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { Difficulty, QuestionSummary } from "../../shared/api";
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
+import type { Difficulty, QuestionSummary, QuestionView } from "../../shared/api";
 import { errorMessage } from "./errors";
 import {
   homeKeyAction,
@@ -9,14 +9,18 @@ import {
   type OkSummary,
   type QuestionFilter,
 } from "./question-list-model";
+import { StatementMarkdown } from "./Statement";
+import { statementPreview } from "./statement-preview";
 
 const api = window.hackerrank;
 
 
 /**
  * The screen the app opens on: the bank's questions in bank order, narrowed by a search box, tag
- * chips and a difficulty filter, with the selected one's details and Start testing. The problem
- * statement is never shown here, so the user cannot read a question before its timer starts.
+ * chips and a difficulty filter, with the selected one's details and Start testing. Below Start
+ * testing is only a preview of the problem statement (its intro and part titles), never the full
+ * statement, so the user can get a question's gist without reading enough to start solving before
+ * its timer starts.
  * Filter and selection are the app's, so they are kept across test mode. The search box takes
  * focus when Home opens; up/down move the selection from it or from a row, and Enter or a
  * double-click starts testing a well-formed question.
@@ -242,7 +246,7 @@ function BankMessage({ bankError, empty }: { bankError: string | undefined; empt
 
 /**
  * The selected question's title, difficulty, target time, tags and number of parts, with Start
- * testing; for a malformed one, its validation errors instead.
+ * testing and then a preview of its statement; for a malformed one, its validation errors instead.
  */
 function Details(props: {
   summary: QuestionSummary;
@@ -250,7 +254,7 @@ function Details(props: {
   starting: boolean;
 }) {
   const { summary } = props;
-  const parts = usePartCount(summary.ok ? summary.id : undefined);
+  const question = useQuestion(summary.ok ? summary.id : undefined);
   if (!summary.ok) {
     return (
       <div className="malformed">
@@ -280,7 +284,7 @@ function Details(props: {
         <dd>{summary.tags.length > 0 ? <Tags tags={summary.tags} /> : <span className="muted">none</span>}</dd>
         <dt>Parts</dt>
         <dd>
-          <PartsValue parts={parts} />
+          <WhenLoaded question={question}>{(q) => q.parts.length}</WhenLoaded>
         </dd>
       </dl>
       <button
@@ -292,35 +296,63 @@ function Details(props: {
       >
         Start testing
       </button>
+      <section className="statement-preview" aria-label="Statement preview">
+        <WhenLoaded question={question}>{(q) => <Preview statement={q.statement} />}</WhenLoaded>
+      </section>
     </div>
   );
 }
 
-function PartsValue({ parts }: { parts: PartCount }) {
-  if (parts.kind === "loaded") return <>{parts.count}</>;
-  if (parts.kind === "failed") return <span className="error">{parts.error}</span>;
-  return <>…</>;
+/** The statement's intro and part titles, ending with a note that the rest waits for testing. */
+function Preview({ statement }: { statement: string }) {
+  const { intro, partTitles } = useMemo(() => statementPreview(statement), [statement]);
+  return (
+    <>
+      <div className="statement">
+        <StatementMarkdown markdown={intro} />
+      </div>
+      {partTitles.length > 0 && (
+        <ul className="part-titles" aria-label="Parts">
+          {partTitles.map((title, i) => (
+            <li key={i}>{title}</li>
+          ))}
+        </ul>
+      )}
+      <p className="muted">Full statement opens when you start testing.</p>
+    </>
+  );
 }
 
-/** A question's number of parts, while it is read or why it could not be. */
-type PartCount = { kind: "loading" } | { kind: "loaded"; count: number } | { kind: "failed"; error: string };
+/** What `children` makes of the loaded question; an ellipsis while it loads, or why it could not. */
+function WhenLoaded(props: { question: LoadedQuestion; children: (q: QuestionView) => ReactNode }) {
+  const { question } = props;
+  if (question.kind === "loaded") return <>{props.children(question.question)}</>;
+  if (question.kind === "failed") return <span className="error">{question.error}</span>;
+  return <span className="muted">…</span>;
+}
+
+/** A question read from the bank, while it is read or why it could not be. */
+type LoadedQuestion =
+  | { kind: "loading" }
+  | { kind: "loaded"; question: QuestionView }
+  | { kind: "failed"; error: string };
 
 /**
- * How many parts question `id` has, read from the bank (its statement is not shown). It starts
- * as loading once per mount, so callers key it by question.
+ * Question `id` read from the bank, for its part count and statement preview. It is read once per
+ * mount, so callers key it by question; that way a new selection never shows the last one's.
  */
-function usePartCount(id: string | undefined): PartCount {
-  const [parts, setParts] = useState<PartCount>({ kind: "loading" });
+function useQuestion(id: string | undefined): LoadedQuestion {
+  const [question, setQuestion] = useState<LoadedQuestion>({ kind: "loading" });
   useEffect(() => {
     if (id === undefined) return;
     let live = true;
     api.loadQuestion(id).then(
-      (q) => live && setParts({ kind: "loaded", count: q.parts.length }),
-      (e) => live && setParts({ kind: "failed", error: errorMessage(e) }),
+      (q) => live && setQuestion({ kind: "loaded", question: q }),
+      (e) => live && setQuestion({ kind: "failed", error: errorMessage(e) }),
     );
     return () => {
       live = false;
     };
   }, [id]);
-  return parts;
+  return question;
 }
