@@ -1,118 +1,61 @@
-# Stripe HackerRank screen: 7-day prep kit (Python)
+# Stripe OA Practice
 
-## What the screen looks like (from 2025–2026 candidate reports)
-- About **60 min** on HackerRank. Usually **one long practical problem split into
-  3–4 parts**, and each part builds on your earlier code. Some versions have 3
-  separate questions. Many people run out of time on the last part.
-- The topics are **parsing and data processing**, not LeetCode puzzles: transaction or
-  payment logs, billing intervals, fraud or dispute thresholds, the Accept-Language
-  header, shipping or currency conversion through a graph hidden in a string, rate
-  limiters, retrying failed events.
-- Grading uses **hidden test cases with strict output matching** (spacing, ordering,
-  number formatting). One complaint was that "output types are not given", so read
-  the sample I/O like a spec.
-- AI-assistant rules differ between rounds. **Ask your recruiter** whether AI or web
-  search is allowed, and assume it isn't unless they say so.
+**Practise the Stripe online assessment the way it really feels, on your own machine, for free.**
 
-## What they're really grading
-1. Turning a long English spec into working code **quickly and correctly**.
-2. Code you can **extend**: Part 3 shouldn't force a rewrite of Part 1.
-3. Edge cases from real life: malformed rows, duplicates (idempotency),
-   out-of-order events, money stored as integer cents or `Decimal` and never as float,
-   tie-breaking, empty input.
+A HackerRank-style practice app, a bank of Stripe-style questions, and an AI skill that turns any
+problem you find into a new practice question.
 
-## The kit
-| Problem | Real-world theme | Target |
-|---|---|---|
-| `questions/q1_accept_language` | HTTP header negotiation | 45 min |
-| `questions/q2_shipping_cost` | lanes string → graph, Dijkstra with constraints | 50 min |
-| `questions/q3_transaction_ledger` | charges/refunds/disputes, out-of-order, idempotency | 60 min |
-| `questions/q4_subscription_emails` | billing lifecycle simulation | 50 min |
-| `questions/q5_request_routing` ★ | route matching, precedence, weighted round-robin, health | 60 min |
-| `questions/q6_payment_commands` ★ | payment state machine, partial capture/refund, idempotency keys | 60 min |
-| `questions/q7_invoice_reconciliation` ★ | allocate payments to invoices, credits, aging, FX rounding | 60 min |
-| `questions/q8_csv_validation` | header/row checks, cross-column refs, cycle detection | 50 min |
-| `questions/q9_atlas_names` | company-name normalization, registry, reclaim | 45 min |
-| `questions/q10_card_ranges` | BIN interval gap-filling and merging, stdin parsing | 40 min |
-| `questions/q11_fraud_mcc` ★ | "Catch Me If You Can": MCC thresholds, count, then %, then disputes | 50 min |
-| `questions/q12_store_closing` | closing-time penalty, O(n) scan, BEGIN/END token state machine | 40 min |
-| `questions/q13_card_validation` | Luhn, network detection, redacted `*` digits, typo recovery | 50 min |
-| `questions/q14_datacenter_routing` ★ | FastPrep "Request Routing System": REGISTER/SET_HEALTHY, Haversine, capacity-aware ROUTE, strict parsing | 60 min |
+## Why I built this
 
-★ = reported most often in 2026, so prioritise these.
-q9–q13 (plus q4, "Subscription Notification Scheduler") come from
-[extrabrain's Stripe OA list](https://extrabrain.app/interview-questions/stripe-hackerrank-online-assessment-extrabrain/).
-That page leaves gaps and has wrong examples, so each problem.md states the rules the tests use.
+I failed my Stripe OA. When I looked back at what went wrong, three things stood out:
 
-The `questions/qN_*` folders are stdin → stdout questions for the practice app in `app/`:
-each has `problem.md`, `question.yaml`, `reference.py`, and sample and hidden tests in
-`tests/partN/`. After an attempt, the app's **My solution | Reference** switch shows the
-reference in the editor (it asks first), where Run, Submit and Custom input run it. It is
-your own copy, `workspace/qN_reference.py`, so edits never touch the bank; **Recover** restores
-it from the bank's `reference.py`. The remaining `pN_*` folders contain `problem.md`, `solution.py` (empty stub
-you fill in), `test.py`, and `reference.py`. Run `python test.py` to test your code or
-`python test.py ref` to test the reference. **Keep reference.py closed until you've made a timed attempt.**
+1. **It starts from an empty file.** No function stub, no scaffolding. You read stdin, parse it and
+   print the exact output yourself. Most practice gives you a stub.
+2. **I had no idea whether I could finish in an hour.** I had practised in my own IDE, but that is nothing
+   like HackerRank: a timer running, sample tests, hidden tests, and output that has to match
+   exactly. I'd never rehearsed under those conditions.
+3. **Real practice is behind a paywall.** Nearly every site that offers timed, graded mock tests
+   wants a subscription first.
 
-## 7-day plan
-| Day | Do |
-|---|---|
-| 1 | Read this file. Do P1 and P2 with timers, then compare with the references. |
-| 2 | Finish P3 (use `Decimal`, not float). Then do P6 (payment commands). |
-| 3 | P5 (request routing) and P7 (invoice reconciliation). |
-| 4 | P4 and P8. In the evening, redo the worst one from scratch. |
-| 5 | Untested variants with your own asserts: rate limiter (fixed window, then sliding window, then token bucket), Luhn check plus card brand detection, masking card numbers in log lines. |
-| 6 | Full mock: delete your solutions to 2 of the ★ problems and solve each in 60 min. Practise reading stdin (template below). |
-| 7 | Light review only. Take the test when you're fresh and have a quiet hour. |
+So I built the practice environment I wish I'd had.
 
-## In-test checklist
-1. **Read every part's text first** if HackerRank shows it (often it only shows the current part).
-   Read the sample I/O twice.
-2. Write the **data model and parser first** (a dataclass or dict), then a function per query.
-3. Get the sample passing quickly, **submit to see hidden-test results**, then fix edge cases.
-   A part that passes counts for more than a perfect but unfinished design.
-4. Give helpers clear names. Don't over-engineer: no classes beyond what the parts need.
-5. Before you move to the next part, check: empty input, duplicates, ties, sort order,
-   formatting (`f"{x:.2f}"`, trailing spaces, newline at end).
-6. Under time pressure, leave a short comment saying what you'd do next.
-   Some graders read the code.
+## What you get
 
-## Python toolkit to have at your fingertips
-```python
-from collections import defaultdict, Counter, deque, OrderedDict
-from dataclasses import dataclass, field
-from decimal import Decimal, ROUND_HALF_UP
-import heapq, bisect, itertools, re, json, csv, io
+- 🖥️ **A local HackerRank-like app.** A timer, an empty editor with Python autocomplete, **Run** against the
+  samples, **Submit** against hidden tests, and graded results for each part. Everything runs offline.
+- 📚 **14 Stripe-style questions.** Long, multi-part parsing and data-processing problems
+  (payments, ledgers, routing, fraud rules, invoices), the kind candidates report getting.
+- 🤖 **Add any question with AI.** Paste problem text or a URL into your coding agent and the
+  `add-question` skill turns it into a full question with a spec, tests and a reference solution.
+- 🔍 **Reference solutions.** After a timed attempt, compare your code with a clean reference.
 
-cents = int(Decimal("12.34") * 100)                       # money: no floats
-Decimal("2.675").quantize(Decimal("0.01"), ROUND_HALF_UP)  # -> 2.68
-f"{c // 100}.{c % 100:02d}"                               # format cents (handle sign separately)
-sorted(rows, key=lambda r: (-r.amount, r.ts, r.id))       # multi-key, mixed directions
-k, _, v = "q=0.5".partition("=")                          # parsing without exceptions
-rows = list(csv.reader(io.StringIO(text)))                # handles quoted commas
-heapq.heappush(h, (cost, tiebreak, item))                 # Dijkstra / scheduling
+## Quick start
+
+You need [Python](https://www.python.org/downloads/) 3.10+ and [Bun](https://bun.sh).
+
+```bash
+cd app
+bun install
+bun run dev
 ```
 
-### HackerRank stdin template (when they don't give you a function stub)
-```python
-import sys
+Pick a question on the Home screen, start the test, and the clock starts.
 
-def main():
-    data = sys.stdin.read().splitlines()
-    n = int(data[0])
-    rows = data[1:1 + n]
-    for line in solve(rows):
-        print(line)
+**Using a coding agent?** Open this folder in it and say *"set up and run the app"*. It will check
+for Python and Bun and help you install anything that's missing. To grow the bank, say *"add this question: &lt;text or URL&gt;"*.
 
-if __name__ == "__main__":
-    main()
-```
+## Tips for the real thing
 
-## Sources
-- [prachub: Stripe Backend HackerRank parsing and data-processing assessment](https://prachub.com/interview-experiences/stripe-backend-engineer-interview-hackerrank-parsing-and-data-processing-assessment-bca80c5c77)
-- [prachub: Stripe OA, one long coding problem](https://prachub.com/resources/stripe-swe-intern-oa-2027-one-long-coding-problem-input-parsing-and-clean-code)
-- [prachub: three-part coding screen](https://prachub.com/interview-experiences/stripe-software-engineer-interview-experience-a-month-of-scheduling-delays-then-a-tight-three-part-coding-screen)
-- [LeetCode: Stripe Accept-Language question](https://leetcode.com/discuss/post/3102019/)
-- [LeetCode: Stripe phone screen (shipping cost)](https://leetcode.com/discuss/post/5883672/stripe-phone-screen-by-anonymous_user-0kk5/)
-- [Lodely: Stripe OA 2025 breakdown](https://www.lodely.com/blog/stripe-online-assessment-2025)
-- [Prepfully: Stripe SWE guide](https://prepfully.com/interview-guides/stripe-software-engineer)
-- [Glassdoor: Stripe interview review](https://www.glassdoor.com/Interview/Stripe-Interview-RVW84471415.htm)
+- Read the sample input and output twice. They are your real spec.
+- Write the parser first, then one function per part. Part 3 shouldn't force a rewrite of Part 1.
+- Get the sample passing, submit early, then fix edge cases: empty input, duplicates, ties,
+  sort order and number formatting.
+- Store money as integer cents or `Decimal`, never as float.
+- A finished part is worth more than a perfect design you didn't finish.
+
+## More
+
+- [Study guide](docs/study-guide.md): what the screen looks like, a 7-day plan, a Python toolkit, sources.
+- [Question format](docs/question-format.md): how a question folder works, if you want to write one by hand.
+
+Good luck. Go get that offer. 🚀

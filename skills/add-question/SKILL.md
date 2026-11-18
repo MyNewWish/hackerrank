@@ -94,7 +94,6 @@ Done when `bun run validate q<N>` prints `OK` and one hidden output per part is 
 
 ## 8. Finish
 
-- Add a row for the question to the kit table in the root `README.md`, after the last `questions/q*` row: `` | `questions/q<N>_<slug>` | <theme> | <targetMinutes> min | ``.
 - Report to the user: every file created, every assumption and filled-in rule, any spec change from step 7, and which hidden outputs you hand-checked.
 
 Stop there, with the files left uncommitted in the working tree. Version control is the user's: they review, then commit, branch and open any PR themselves.
