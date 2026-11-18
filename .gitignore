@@ -4,3 +4,6 @@ workspace/
 node_modules/
 out/
 release/
+
+# Demo video: hosted on YouTube, not in the repo
+docs/demo/*.mp4

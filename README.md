@@ -2,6 +2,10 @@
 
 **Practise coding assessments the way they really feel, on your own machine, for free.**
 
+[![Watch the 2-minute demo on YouTube](docs/demo/youtube-thumbnail.png)](https://youtu.be/mKtadcCcAHs)
+
+▶️ [Watch the 2-minute demo on YouTube](https://youtu.be/mKtadcCcAHs)
+
 A local app that works like HackerRank: a timer, an empty editor, sample tests and hidden tests.
 You solve each problem in **Python**. Python is the only language supported for now.
 
