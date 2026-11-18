@@ -1,9 +1,14 @@
-# Stripe OA Practice
+# Local HackerRank-Style Practice for Python
 
-**Practise the Stripe online assessment the way it really feels, on your own machine, for free.**
+**Practise coding assessments the way they really feel, on your own machine, for free.**
 
-A HackerRank-style practice app, a bank of Stripe-style questions, and an AI skill that turns any
-problem you find into a new practice question.
+A local app that works like HackerRank: a timer, an empty editor, sample tests and hidden tests.
+You solve each problem in **Python**. Python is the only language supported for now.
+
+You can practise any question you like. Open this folder in Claude Code, Codex or any other coding
+agent and use the `add-question` skill. Paste the problem text or a URL and it builds a full practice
+question with a spec, tests and a reference solution. The app comes with 14 Stripe-style questions
+to start with.
 
 ## Why I built this
 
@@ -21,12 +26,12 @@ So I built the practice environment I wish I'd had.
 
 ## What you get
 
-- 🖥️ **A local HackerRank-like app.** A timer, an empty editor with Python autocomplete, **Run** against the
+- 🖥️ **A local HackerRank-like app for Python.** A timer, an empty editor with Python autocomplete, **Run** against the
   samples, **Submit** against hidden tests, and graded results for each part. Everything runs offline.
-- 📚 **14 Stripe-style questions.** Long, multi-part parsing and data-processing problems
+- 🤖 **Add any question with AI.** Paste problem text or a URL into Claude Code, Codex or any coding
+  agent and the `add-question` skill turns it into a full question with a spec, tests and a reference solution.
+- 📚 **14 Stripe-style starter questions.** Long, multi-part parsing and data-processing problems
   (payments, ledgers, routing, fraud rules, invoices), the kind candidates report getting.
-- 🤖 **Add any question with AI.** Paste problem text or a URL into your coding agent and the
-  `add-question` skill turns it into a full question with a spec, tests and a reference solution.
 - 🔍 **Reference solutions.** After a timed attempt, compare your code with a clean reference.
 
 ## Quick start
