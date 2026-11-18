@@ -1,0 +1,37 @@
+⭐ GitHub (free & open source): https://github.com/MyNewWish/hackerrank
+
+I failed my Stripe online assessment, so I built the practice environment I wish I'd had: a local, HackerRank-style app for Python with a timer, an empty editor, sample tests and hidden tests. It runs completely offline on your own machine, for free.
+
+Why I built this:
+1. The real test starts from an empty file. There's no stub, so you parse stdin and print the exact output yourself.
+2. I had never practised under real conditions: a timer running, sample tests, hidden tests and exact-match output.
+3. Most realistic timed practice sits behind a paywall.
+
+What you get:
+🖥️ A HackerRank-like screen: a stopwatch, an empty editor with Python completion, Run on the samples, Submit on the hidden tests, and graded results for each part
+📚 14 Stripe-style starter questions: long, multi-part parsing and data-processing problems (payments, ledgers, routing, fraud rules, invoices)
+🔍 A line-by-line diff of expected vs. your output, plus a custom stdin runner
+✅ Reference solutions to compare with after your timed attempt
+🤖 Add any question with AI: paste problem text or a URL into Claude Code, Codex or any coding agent, and the add-question skill builds the statement, tests and a reference solution
+
+Chapters:
+0:00 Intro
+0:09 Why I built this
+0:35 Question bank, search and filters
+0:45 Picking a question
+0:56 The timed test screen
+1:07 Writing a solution from an empty file
+1:21 Run sample tests and Submit hidden tests
+1:47 Custom input and the reference solution
+2:06 Add your own questions with AI
+2:22 Get started
+
+Get started (needs Python 3.10+ and Bun):
+git clone https://github.com/MyNewWish/hackerrank
+cd hackerrank/app
+bun install
+bun run dev
+
+Good luck. Go get that offer! 🚀
+
+#python #codinginterview #hackerrank #leetcode #stripe #onlineassessment #softwareengineering
