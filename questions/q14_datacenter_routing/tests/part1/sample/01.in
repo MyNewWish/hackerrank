@@ -1,0 +1,7 @@
+REGISTER us-west 38 -122 100
+REGISTER us-east 41 -74 150
+REGISTER us-west 50 -100 50
+REGISTER invalid-node 91 0 100
+REGISTER invalid-cap 0 0 0
+SET_HEALTHY us-east false
+SET_HEALTHY fake-node true

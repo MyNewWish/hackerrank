@@ -1,0 +1,9 @@
+title: Payment card validation
+difficulty: medium
+tags: [stripe, parsing, luhn, brute-force]
+targetMinutes: 50
+parts:
+  - { id: part1, title: Visa checksum }
+  - { id: part2, title: Classify }
+  - { id: part3, title: Redacted digits }
+  - { id: part4, title: Typo recovery }

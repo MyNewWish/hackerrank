@@ -1,0 +1,8 @@
+title: Store closing time penalty
+difficulty: medium
+tags: [stripe, parsing, prefix-sums, state-machine]
+targetMinutes: 40
+parts:
+  - { id: part1, title: Penalty }
+  - { id: part2, title: Best closing time }
+  - { id: part3, title: Aggregate logs }

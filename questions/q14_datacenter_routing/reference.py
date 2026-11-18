@@ -1,6 +1,10 @@
-"""Reference solution - datacenter request routing (all 4 parts)."""
+"""Reference solution - datacenter request routing (all 4 parts).
+
+Reads command lines from stdin up to the end of input; prints one line per non-blank line.
+"""
 import math
 import re
+import sys
 from dataclasses import dataclass
 
 NUM = re.compile(r"-?\d+(\.\d+)?")
@@ -96,3 +100,12 @@ class Router:
 def solve(text):
     router = Router()
     return [router.run(line) for line in text.split("\n") if line.strip()]
+
+
+def main():
+    for result in solve(sys.stdin.read()):
+        print(result)
+
+
+if __name__ == "__main__":
+    main()

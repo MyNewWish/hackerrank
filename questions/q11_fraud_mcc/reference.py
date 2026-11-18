@@ -1,4 +1,9 @@
-"""Reference solution - Catch Me If You Can (all 3 parts)."""
+"""Reference solution - Catch Me If You Can (all 3 parts).
+
+Reads the code lists, the mode line and the counted threshold, merchant and event
+sections from stdin; prints the sorted fraudulent account ids, or NONE.
+"""
+import sys
 from fractions import Fraction
 
 
@@ -52,12 +57,25 @@ def _run(non_fraud, fraud, thresholds, merchants, min_txns, events, as_fraction)
                 bad[acct] -= 1
             if acct in marked and not breaches(acct):
                 marked.discard(acct)        # a dispute can clear the flag
-    return ",".join(sorted(marked))
+    return ",".join(sorted(marked)) or "NONE"
 
 
-def fraud_by_count(non_fraud, fraud, thresholds, merchants, min_txns, events):
-    return _run(non_fraud, fraud, thresholds, merchants, min_txns, events, False)
+def main():
+    lines = sys.stdin.read().splitlines()
+    non_fraud, fraud = lines[0], lines[1]
+    mode, min_txns = lines[2].split()
+    pos = 3
+
+    def section():
+        nonlocal pos
+        count = int(lines[pos])
+        items = lines[pos + 1:pos + 1 + count]
+        pos += 1 + count
+        return items
+
+    thresholds, merchants, events = section(), section(), section()
+    print(_run(non_fraud, fraud, thresholds, merchants, int(min_txns), events, mode == "PERCENT"))
 
 
-def fraud_by_percent(non_fraud, fraud, thresholds, merchants, min_txns, events):
-    return _run(non_fraud, fraud, thresholds, merchants, min_txns, events, True)
+if __name__ == "__main__":
+    main()

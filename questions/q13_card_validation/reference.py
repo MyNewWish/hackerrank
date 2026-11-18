@@ -1,4 +1,8 @@
-"""Reference solution - payment card validation (all 4 parts)."""
+"""Reference solution - payment card validation (all 4 parts).
+
+Reads Q queries (VISA / CLASSIFY / REDACTED / RECOVER card) from stdin; prints one line per query.
+"""
+import sys
 from collections import Counter
 from itertools import product
 
@@ -74,3 +78,22 @@ def recover(card):
         if net and luhn_ok(c):
             out.append((int(c), f"{c},{net}"))
     return [line for _, line in sorted(out)]
+
+
+COMMANDS = {
+    "VISA": lambda card: [validate_visa(card)],
+    "CLASSIFY": lambda card: [classify(card)],
+    "REDACTED": count_redacted,
+    "RECOVER": recover,
+}
+
+
+def main():
+    lines = sys.stdin.read().splitlines()
+    for line in lines[1:1 + int(lines[0])]:
+        cmd, _, card = line.strip().partition(" ")
+        print(" ".join(COMMANDS[cmd](card.strip())) or "NONE")
+
+
+if __name__ == "__main__":
+    main()

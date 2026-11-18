@@ -1,0 +1,8 @@
+title: Catch Me If You Can (MCC fraud thresholds)
+difficulty: medium
+tags: [stripe, parsing, fraud, simulation]
+targetMinutes: 50
+parts:
+  - { id: part1, title: Fraud by count }
+  - { id: part2, title: Fraud by percentage }
+  - { id: part3, title: Disputes }

@@ -1,0 +1,21 @@
+approved,invalid_pin
+do_not_honor,stolen_card,lost_card
+COUNT 10
+2
+5411,2
+7995,1
+3
+acct_a,5411
+acct_b,7995
+acct_c,5411
+10
+CHARGE,c1,acct_a,100,do_not_honor
+CHARGE,c2,acct_a,100,stolen_card
+CHARGE,c3,acct_b,100,lost_card
+CHARGE,c4,acct_c,100,approved
+CHARGE,c5,acct_a,100,approved
+CHARGE,c6,acct_b,100,approved
+CHARGE,c7,acct_c,100,stolen_card
+CHARGE,c8,acct_c,100,weird_code
+CHARGE,c9,acct_z,100,stolen_card
+CHARGE,c7,acct_c,100,stolen_card

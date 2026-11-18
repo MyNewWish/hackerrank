@@ -1,0 +1,17 @@
+approved,invalid_pin
+do_not_honor,stolen_card,lost_card
+PERCENT 2
+2
+5411,0.5
+7995,0.25
+3
+acct_a,5411
+acct_b,7995
+acct_c,5411
+6
+CHARGE,d1,acct_a,100,stolen_card
+CHARGE,d2,acct_a,100,approved
+DISPUTE,d1
+CHARGE,d3,acct_a,100,stolen_card
+DISPUTE,d1
+CHARGE,d4,acct_a,100,stolen_card

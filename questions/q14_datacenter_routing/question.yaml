@@ -1,0 +1,9 @@
+title: Datacenter request routing
+difficulty: hard
+tags: [stripe, parsing, routing, geometry, validation]
+targetMinutes: 60
+parts:
+  - { id: part1, title: REGISTER and SET_HEALTHY }
+  - { id: part2, title: DISTANCE }
+  - { id: part3, title: ROUTE }
+  - { id: part4, title: Strict input checks }

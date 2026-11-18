@@ -1,0 +1,22 @@
+approved,invalid_pin
+do_not_honor,stolen_card,lost_card
+PERCENT 5
+2
+5411,0.5
+7995,0.25
+3
+acct_a,5411
+acct_b,7995
+acct_c,5411
+11
+CHARGE,c1,acct_a,100,approved
+CHARGE,c2,acct_a,100,stolen_card
+CHARGE,c3,acct_a,100,approved
+CHARGE,c4,acct_a,100,approved
+CHARGE,c5,acct_b,100,approved
+CHARGE,c6,acct_b,100,approved
+CHARGE,c7,acct_b,100,approved
+CHARGE,c8,acct_b,100,lost_card
+CHARGE,c9,acct_c,100,approved
+CHARGE,c10,acct_c,100,approved
+CHARGE,c11,acct_c,100,stolen_card

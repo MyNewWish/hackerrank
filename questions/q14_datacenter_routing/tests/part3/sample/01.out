@@ -1,0 +1,7 @@
+OK
+OK
+OK
+OK
+node-A 0 node-A,node-B
+node-B 0 node-A,node-B
+None node-A,node-B

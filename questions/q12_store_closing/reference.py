@@ -1,4 +1,8 @@
-"""Reference solution - store closing time penalty (all 3 parts)."""
+"""Reference solution - store closing time penalty (all 3 parts).
+
+Reads Q queries (PENALTY t log, BEST log, STREAM k + k lines) from stdin; prints one line per query.
+"""
+import sys
 
 
 def _tokens(log):
@@ -42,3 +46,24 @@ def get_best_closing_times(aggregate_log):
         else:
             current = None        # garbage invalidates the open log
     return out
+
+
+def main():
+    lines = sys.stdin.read().splitlines()
+    count, pos = int(lines[0]), 1
+    for _ in range(count):
+        fields = lines[pos].split()
+        pos += 1
+        if fields[0] == "PENALTY":
+            print(compute_penalty(" ".join(fields[2:]), int(fields[1])))
+        elif fields[0] == "BEST":
+            print(find_best_closing_time(" ".join(fields[1:])))
+        else:                                   # STREAM k
+            k = int(fields[1])
+            times = get_best_closing_times("\n".join(lines[pos:pos + k]))
+            pos += k
+            print(" ".join(map(str, times)) or "NONE")
+
+
+if __name__ == "__main__":
+    main()
