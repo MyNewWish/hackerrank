@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "gen": "bun src/cli/gen.ts",
     "validate": "bun src/cli/validate.ts",
-    "package": "bun scripts/package.ts"
+    "package": "bun scripts/package.ts",
+    "postinstall": "install-electron"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
