@@ -1,0 +1,13 @@
+# Template for questions/q<N>_<slug>/question.yaml. Replace every <...> and delete these comments.
+title: <Title, as in problem.md>
+difficulty: <easy | medium | hard>
+tags: [<topic>, <topic>]           # reuse existing tags where they fit; add stripe for Stripe-reported problems
+targetMinutes: <minutes>            # q1–q6 use 45–60
+# Optional, only when the defaults don't fit:
+# timeLimitMs: 5000                 # per test run; default 5000
+# compare: lines                    # lines (default) | exact | float:<eps>, e.g. float:1e-6
+parts:                              # each id matches a folder under tests/; drop part4 for a 3-part question
+  - { id: part1, title: <Part 1 title> }
+  - { id: part2, title: <Part 2 title> }
+  - { id: part3, title: <Part 3 title> }
+  - { id: part4, title: <Part 4 title> }
