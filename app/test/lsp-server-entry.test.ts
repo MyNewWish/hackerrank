@@ -3,19 +3,19 @@ import { expect, test } from "bun:test";
 import { unpackedServerEntry } from "../src/lsp/pyright";
 
 test("a packaged Windows path points into app.asar.unpacked", () => {
-  expect(unpackedServerEntry(String.raw`C:\Program Files\HackRank\resources\app.asar\node_modules\pyright\langserver.index.js`)).toBe(
-    String.raw`C:\Program Files\HackRank\resources\app.asar.unpacked\node_modules\pyright\langserver.index.js`,
+  expect(unpackedServerEntry(String.raw`C:\Program Files\HackerRank\resources\app.asar\node_modules\pyright\langserver.index.js`)).toBe(
+    String.raw`C:\Program Files\HackerRank\resources\app.asar.unpacked\node_modules\pyright\langserver.index.js`,
   );
 });
 
 test("a packaged POSIX path points into app.asar.unpacked", () => {
-  expect(unpackedServerEntry("/Applications/HackRank.app/Contents/Resources/app.asar/node_modules/pyright/langserver.index.js")).toBe(
-    "/Applications/HackRank.app/Contents/Resources/app.asar.unpacked/node_modules/pyright/langserver.index.js",
+  expect(unpackedServerEntry("/Applications/HackerRank.app/Contents/Resources/app.asar/node_modules/pyright/langserver.index.js")).toBe(
+    "/Applications/HackerRank.app/Contents/Resources/app.asar.unpacked/node_modules/pyright/langserver.index.js",
   );
 });
 
 test("a dev path from node_modules is unchanged", () => {
-  const dev = String.raw`C:\repo\hackrank\app\node_modules\pyright\langserver.index.js`;
+  const dev = String.raw`C:\repo\hackerrank\app\node_modules\pyright\langserver.index.js`;
   expect(unpackedServerEntry(dev)).toBe(dev);
 });
 

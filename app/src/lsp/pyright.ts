@@ -147,7 +147,7 @@ async function initialize(connection: MessageConnection, workspaceDir: string): 
   const params: InitializeParams = {
     processId: process.pid,
     rootUri,
-    workspaceFolders: [{ uri: rootUri, name: "hackrank" }],
+    workspaceFolders: [{ uri: rootUri, name: "hackerrank" }],
     capabilities: {
       workspace: { configuration: true, workspaceFolders: true },
       textDocument: {

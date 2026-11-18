@@ -21,7 +21,7 @@ keyword completion.
 | 8 | Setting storage | An `ideMode: "full" \| "hackerrank"` key in the settings store that #9 builds (`userData`, main-owned, get/set over IPC). The toggle sits in the toolbar next to Run/Submit. |
 | 9 | Strictness | `typeCheckingMode: "basic"`. |
 | 10 | Diagnostics impact | Advisory only. Run/Submit never warn or block. |
-| 11 | Documents | One in-memory document per open question (`didOpen` on mount, `didChange` on edit, `didClose` on unmount or question switch). The URI is virtual, e.g. `file:///hackrank/<questionId>/solution.py`. The server never reads the autosaved file. |
+| 11 | Documents | One in-memory document per open question (`didOpen` on mount, `didChange` on edit, `didClose` on unmount or question switch). The URI is virtual, e.g. `file:///hackerrank/<questionId>/solution.py`. The server never reads the autosaved file. |
 | 12 | Completion trigger | Automatic while typing, and on `.` (normal VS Code behaviour). |
 | 13 | Failure | If the server fails to start or crashes: restart once, then fall back to word completion with a small status note ("Python IDE features unavailable"). The editor and Run/Submit are never affected. |
 | 14 | Testing | Integration tests run the real server under `bun test`. Unit tests cover the pure LSP→Monaco converters. The Monaco providers are checked by hand in the app. |
@@ -30,7 +30,7 @@ keyword completion.
 ```
 renderer (Monaco)                      main                          utilityProcess
 ───────────────────                    ─────                         ──────────────
-lsp/providers.ts  ── window.hackrank ──► lsp/server.ts ── stdio ──► pyright langserver
+lsp/providers.ts  ── window.hackerrank ──► lsp/server.ts ── stdio ──► pyright langserver
   Completion/Hover/SignatureHelp          spawn, restart-once,        (typeshed bundled)
   setModelMarkers(diagnostics)            JSON-RPC (vscode-jsonrpc)
 lsp/convert.ts (pure, unit-tested)      settings store from #9 (+ ideMode)
@@ -42,7 +42,7 @@ lsp/convert.ts (pure, unit-tested)      settings store from #9 (+ ideMode)
   `workspace/configuration` requests. Exposes request/notify over IPC and forwards
   `textDocument/publishDiagnostics` to the renderer. Stops the server when the mode switches to
   HackerRank-like, and on app quit.
-- **IPC (`src/shared/api.ts`):** add channels to `CHANNELS` and `HackrankApi`, roughly:
+- **IPC (`src/shared/api.ts`):** add channels to `CHANNELS` and `HackerrankApi`, roughly:
   `lsp:open(id, text)`, `lsp:change(id, version, text)` (full-text sync is enough for one small file),
   `lsp:close(id)`, `lsp:completion(id, pos)`, `lsp:hover(id, pos)`, `lsp:signatureHelp(id, pos, ctx)`,
   `lsp:diagnostics` (main → renderer push), `lsp:status` (main → renderer push: `ready | unavailable`),

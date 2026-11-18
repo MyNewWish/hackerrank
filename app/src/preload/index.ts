@@ -1,9 +1,9 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import { CHANNELS, type Diagnostic, type GradedTest, type HackrankApi, type LspStatus } from "../shared/api";
+import { CHANNELS, type Diagnostic, type GradedTest, type HackerrankApi, type LspStatus } from "../shared/api";
 
 let nextRunId = 0;
 
-const api: HackrankApi = {
+const api: HackerrankApi = {
   listQuestions: () => ipcRenderer.invoke(CHANNELS.listQuestions),
   loadQuestion: (id) => ipcRenderer.invoke(CHANNELS.loadQuestion, id),
   readCode: (id, view) => ipcRenderer.invoke(CHANNELS.readCode, id, view),
@@ -53,4 +53,4 @@ const api: HackrankApi = {
   },
 };
 
-contextBridge.exposeInMainWorld("hackrank", api);
+contextBridge.exposeInMainWorld("hackerrank", api);

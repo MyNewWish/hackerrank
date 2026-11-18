@@ -1,5 +1,5 @@
 {
-  "name": "hackrank",
+  "name": "hackerrank",
   "version": "0.1.0",
   "description": "Offline practice app for HackerRank-style Python screens",
   "author": "licanhuadev",
@@ -44,8 +44,8 @@
   },
   "main": "./out/main/index.js",
   "build": {
-    "appId": "dev.licanhua.hackrank",
-    "productName": "HackRank",
+    "appId": "dev.licanhua.hackerrank",
+    "productName": "HackerRank",
     "directories": {
       "output": "release"
     },

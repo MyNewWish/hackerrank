@@ -10,7 +10,7 @@ import {
   toMonacoSignatureHelp,
 } from "./convert";
 
-const api = window.hackrank;
+const api = window.hackerrank;
 
 /** The question each attached editor's model belongs to. */
 const documents = new WeakMap<monaco.editor.ITextModel, string>();

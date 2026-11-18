@@ -172,7 +172,7 @@ function createWindow(): void {
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
-    title: "HackRank",
+    title: "HackerRank",
     autoHideMenuBar: true,
     webPreferences: {
       preload: fileURLToPath(new URL("../preload/index.cjs", import.meta.url)),

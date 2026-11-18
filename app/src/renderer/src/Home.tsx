@@ -10,7 +10,7 @@ import {
   type QuestionFilter,
 } from "./question-list-model";
 
-const api = window.hackrank;
+const api = window.hackerrank;
 
 
 /**

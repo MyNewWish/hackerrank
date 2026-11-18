@@ -12,7 +12,7 @@ const IDE_MODE_OPTIONS: { mode: IdeMode; label: string; title: string }[] = [
   { mode: "full", label: "Full IDE", title: "Pyright completion, hover, signature help and error squiggles" },
 ];
 
-const api = window.hackrank;
+const api = window.hackerrank;
 
 /**
  * Which screen is shown: Home, or test mode for one attempt at a question. Each attempt has its

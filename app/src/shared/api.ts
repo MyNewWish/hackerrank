@@ -120,10 +120,10 @@ export const CHANNELS = {
 } as const;
 
 /**
- * Everything the renderer may ask of the main process, exposed as `window.hackrank` by the
+ * Everything the renderer may ask of the main process, exposed as `window.hackerrank` by the
  * preload script. The renderer has no other access to files or processes.
  */
-export interface HackrankApi {
+export interface HackerrankApi {
   listQuestions(): Promise<QuestionSummary[]>;
   loadQuestion(id: string): Promise<QuestionView>;
   /**

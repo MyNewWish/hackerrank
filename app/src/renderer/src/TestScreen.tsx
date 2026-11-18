@@ -12,7 +12,7 @@ import { Statement } from "./Statement";
 import { Stopwatch } from "./Stopwatch";
 import { useDarkMode } from "./useDarkMode";
 
-const api = window.hackrank;
+const api = window.hackerrank;
 const AUTOSAVE_DELAY_MS = 500;
 const IS_MAC = navigator.userAgent.includes("Macintosh");
 const MOD = IS_MAC ? "⌘" : "Ctrl";
