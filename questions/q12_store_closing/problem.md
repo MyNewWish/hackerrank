@@ -1,7 +1,5 @@
 # Store closing time penalty
 
-Source: "Store Closing Time Penalty" from extrabrain's Stripe HackerRank OA list.
-
 A store log is a sequence of `Y` (customers came that hour) and `N` (no customers)
 tokens, separated by any whitespace (spaces or tabs). Closing time `t` is an integer from
 `0` to `n`, where `n` is the number of hours: the store is open for the first `t` hours
@@ -116,3 +114,9 @@ Output:
 
 In the first stream, `BEGIN Y Y END` gives `2`; the second `BEGIN` discards the first and
 `N N END` gives `0`; `Y END` is outside a log, and the final `BEGIN Y` is never closed.
+
+---
+
+Source: ["Store Closing Time Penalty"](https://extrabrain.app/interview-questions/stripe-hackerrank-online-assessment-extrabrain/) on extrabrain's Stripe HackerRank OA list.
+Rewritten for this bank; the rules above fill gaps
+and fix errors in the original, so they win where the two differ.

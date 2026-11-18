@@ -1,8 +1,6 @@
 # Datacenter request routing
 
-Source: [FastPrep "Request Routing System"](https://www.fastprep.io/problems/stripe-request-routing-system),
-reported repeatedly from 2026 Stripe HackerRank OAs as "one long question, 60 minutes".
-(It's a different problem from `q5`, which routes URL paths.)
+This is a different problem from `q5`, which routes URL paths.
 
 You are building a request-routing command processor for datacenters.
 
@@ -158,3 +156,10 @@ ERROR
 ERROR
 a 0 a
 ```
+
+---
+
+Source: [FastPrep "Request Routing System"](https://www.fastprep.io/problems/stripe-request-routing-system),
+reported repeatedly from 2026 Stripe HackerRank OAs as "one long question, 60 minutes".
+Rewritten for this bank; the rules above fill gaps
+and fix errors in the original, so they win where the two differ.

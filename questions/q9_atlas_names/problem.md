@@ -1,7 +1,5 @@
 # Atlas company name check
 
-Source: "Atlas Company Name Check" from extrabrain's Stripe HackerRank OA list.
-
 Stripe Atlas registers companies. Two names that differ only in punctuation, casing,
 suffixes or filler words count as **the same name**.
 
@@ -125,3 +123,9 @@ b|Reclaim Denied
 a|Reclaim Denied
 a|Reclaimed
 ```
+
+---
+
+Source: ["Atlas Company Name Check"](https://extrabrain.app/interview-questions/stripe-hackerrank-online-assessment-extrabrain/) on extrabrain's Stripe HackerRank OA list.
+Rewritten for this bank; the rules above fill gaps
+and fix errors in the original, so they win where the two differ.

@@ -1,7 +1,5 @@
 # Payment card validation
 
-Source: "Stripe Payment Card Validation System" from extrabrain's Stripe HackerRank OA list.
-
 Networks:
 
 | Network | Length | Prefix |
@@ -122,7 +120,11 @@ Output:
 The true card is `378282246310005` with its last two digits swapped; the other 15 come
 from changing one digit.
 
-## Notes on the source
+---
+
+Source: ["Stripe Payment Card Validation System"](https://extrabrain.app/interview-questions/stripe-hackerrank-online-assessment-extrabrain/) on extrabrain's Stripe HackerRank OA list.
+Rewritten for this bank; the rules above fill gaps
+and fix errors in the original, so they win where the two differ.
 
 Several examples on the extrabrain page are wrong under the page's own Luhn rule. It says
 `4425233430109994` is VISA, `3*8282246310005` gives `AMEX,2`, and it lists invalid cards

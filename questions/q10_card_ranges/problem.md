@@ -1,7 +1,5 @@
 # Card range obfuscation
 
-Source: "Card Range Obfuscation" from extrabrain's Stripe HackerRank OA list.
-
 A 6-digit BIN covers every 16-digit card number that starts with it. For example,
 BIN `424242` covers `4242420000000000` through `4242429999999999`. An internal service
 returns brand intervals inside a BIN, as 10-digit offsets. Before showing them to users,
@@ -99,3 +97,9 @@ Output:
 
 Note: the example on the extrabrain page doesn't fill the trailing gap, which
 contradicts its own rule. These tests follow the rule.
+
+---
+
+Source: ["Card Range Obfuscation"](https://extrabrain.app/interview-questions/stripe-hackerrank-online-assessment-extrabrain/) on extrabrain's Stripe HackerRank OA list.
+Rewritten for this bank; the rules above fill gaps
+and fix errors in the original, so they win where the two differ.

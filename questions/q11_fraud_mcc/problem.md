@@ -1,9 +1,5 @@
 # Catch Me If You Can (MCC fraud thresholds)
 
-Source: "Catch Me If You Can" from extrabrain's Stripe HackerRank OA list. This is the
-same family as the "merchant fraud monitor" in the 2026 reports. The page gives no
-samples, so the rules below fill the gaps.
-
 Every merchant (account) has an MCC (merchant category code), and every MCC has a fraud
 threshold. You replay a stream of charge events and report the merchants that were
 caught as fraudulent.
@@ -169,3 +165,11 @@ acct_a
 
 `acct_a` is marked at 1/2, cleared by the dispute (0/2), not marked at 1/3, the second
 dispute of `d1` is ignored, and `d4` marks it again at 2/4.
+
+---
+
+Source: ["Catch Me If You Can"](https://extrabrain.app/interview-questions/stripe-hackerrank-online-assessment-extrabrain/) on extrabrain's Stripe HackerRank OA list.
+Rewritten for this bank; the rules above fill gaps
+and fix errors in the original, so they win where the two differ.
+It is the same family as the "merchant fraud monitor" in the 2026 reports; the page
+gives no samples.
